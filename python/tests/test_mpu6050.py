@@ -1,9 +1,9 @@
-"""espbridge.drivers.mpu6050.MPU6050: wake-on-construct + sample decoding."""
+"""esplink.drivers.mpu6050.MPU6050: wake-on-construct + sample decoding."""
 import struct
 
 import pytest
 
-from espbridge.drivers.mpu6050 import MPU6050
+from esplink.drivers.mpu6050 import MPU6050
 
 
 class FakeI2c:

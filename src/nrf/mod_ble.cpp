@@ -8,9 +8,9 @@
 // So only scanning (a GAP observer, which runs fine alongside the link) is
 // implemented; the GATT server/client ops reply ST_UNSUPPORTED.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
 
 #if BRIDGE_BLE
 

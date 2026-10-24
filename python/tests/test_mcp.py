@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("fastmcp")
 from fastmcp import Client  # noqa: E402
 
-from espbridge.mcp import BridgeManager, build_server  # noqa: E402
+from esplink.mcp import BridgeManager, build_server  # noqa: E402
 
 
 def _manager(fw):
@@ -89,7 +89,7 @@ def _collect_feedback(server, fw, calls):
 
 
 def test_feedback_on_by_default(fw):
-    from espbridge.mcp.common import FEEDBACK
+    from esplink.mcp.common import FEEDBACK
 
     FEEDBACK.enabled = True
     mgr = _manager(fw)
@@ -107,7 +107,7 @@ def test_feedback_on_by_default(fw):
 
 
 def test_feedback_can_be_disabled(fw):
-    from espbridge.mcp.common import FEEDBACK
+    from esplink.mcp.common import FEEDBACK
 
     FEEDBACK.enabled = True
     mgr = _manager(fw)
@@ -205,7 +205,7 @@ def test_feedback_on_failure(fw):
     so the MCP client always sees what happened regardless of success or failure."""
     from fastmcp.exceptions import ToolError as ClientToolError
 
-    from espbridge.mcp.common import FEEDBACK
+    from esplink.mcp.common import FEEDBACK
 
     FEEDBACK.enabled = True
     mgr = _manager(fw)

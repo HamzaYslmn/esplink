@@ -5,10 +5,10 @@ import time
 import pytest
 
 import fake_firmware
-from espbridge import constants as C
-from espbridge.bridge import Bridge
-from espbridge.errors import BridgeTimeoutError, RemoteError, UnsupportedError
-from espbridge.espnow import BROADCAST, mac_to_bytes, mac_to_str
+from esplink import constants as C
+from esplink.bridge import Bridge
+from esplink.errors import BridgeTimeoutError, RemoteError, UnsupportedError
+from esplink.espnow import BROADCAST, mac_to_bytes, mac_to_str
 from fake_firmware import FakeFirmware
 
 PEER = "a0:b1:c2:d3:e4:f5"

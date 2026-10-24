@@ -5,7 +5,7 @@ runs detached and you collect logs over Bluetooth later.
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     lfs = esp.fs.mount("littlefs")

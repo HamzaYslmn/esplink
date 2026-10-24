@@ -1,7 +1,7 @@
 """Two-board ESP-NOW chat, fully wireless — Bluetooth to the board, ESP-NOW between boards.
 
 No USB cable, no router: each machine talks to its ESP32 over the Bluetooth
-link (default password "espbridge", set via EspBridge.ble.begin()), and the
+link (default password "esplink", set via EspLink.ble.begin()), and the
 boards talk to each other over ESP-NOW (~250 bytes per packet, delivery ACKs).
 
 Run on each machine:
@@ -16,13 +16,13 @@ delivery feedback without any connection setup.
 import sys
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 args = sys.argv[1:]
 peer = args[0] if args else None
 board = args[1] if len(args) > 1 else None
 
-with Bridge(board, ble=True, password="espbridge") as esp:
+with Bridge(board, ble=True, password="esplink") as esp:
     mac = esp.espnow.begin()
     print(f"connected over Bluetooth: {esp.info.ident}")
     print(f"this board's ESP-NOW MAC: {mac}  (pass it to the other side)")

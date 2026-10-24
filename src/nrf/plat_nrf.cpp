@@ -1,10 +1,10 @@
-// python-esp-bridge — nRF52840 platform glue (heap, reset cause, link Serial,
+// esplink — nRF52840 platform glue (heap, reset cause, link Serial,
 // log hook). Counterpart to src/esp/plat_esp.cpp. The Bluefruit core ships
 // FreeRTOS (heap_4), so the bridge's task/queue model runs unchanged.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/platform.h"
-#include "espbridge/protocol.h"
-#include "espbridge/config.h"
+#include "esplink/platform.h"
+#include "esplink/protocol.h"
+#include "esplink/config.h"
 #include <InternalFileSystem.h>
 
 // Single, idempotent LittleFS (internal flash) mount shared by the FS, NVS and

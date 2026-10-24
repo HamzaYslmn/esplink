@@ -1,7 +1,7 @@
-"""espbridge.drivers.sx127x.SX127x: SX1276 LoRa transceiver over SPI (hardware-free)."""
+"""esplink.drivers.sx127x.SX127x: SX1276 LoRa transceiver over SPI (hardware-free)."""
 import pytest
 
-from espbridge.drivers.sx127x import SX127x
+from esplink.drivers.sx127x import SX127x
 
 # Register addresses mirrored from the driver, for asserting on recorded traffic.
 REG_OP_MODE = 0x01

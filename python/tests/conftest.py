@@ -8,7 +8,7 @@ sys.path.insert(0, str(_HERE))
 
 import pytest  # noqa: E402
 
-from espbridge.bridge import Bridge  # noqa: E402
+from esplink.bridge import Bridge  # noqa: E402
 from fake_firmware import FakeFirmware  # noqa: E402
 
 

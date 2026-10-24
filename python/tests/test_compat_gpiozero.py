@@ -7,13 +7,13 @@ import pytest
 pytest.importorskip("gpiozero")
 from gpiozero import LED, Button, PWMLED  # noqa: E402
 
-from espbridge import constants as C  # noqa: E402
-from espbridge.compat.gpiozero import EspBridgeFactory  # noqa: E402
+from esplink import constants as C  # noqa: E402
+from esplink.compat.gpiozero import EspLinkFactory  # noqa: E402
 
 
 @pytest.fixture()
 def factory(bridge):
-    f = EspBridgeFactory(bridge)
+    f = EspLinkFactory(bridge)
     yield f
     f.close()
 

@@ -9,10 +9,10 @@
 // slow_task (accept/dial/close), rx_task (recv) and tx_task (send) — and an
 // int in a std::atomic is the only thing safe to share that way. Concurrent
 // send/recv on one fd is fine in lwIP; the close path below is what needs care.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
-#include "espbridge/radio.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
+#include "esplink/radio.h"
 
 #if BRIDGE_WIFI_LINK
 
@@ -25,14 +25,14 @@
 #include <esp_random.h>
 #include <atomic>
 
-// Config, either from the sketch (EspBridge.wifi.begin) or NVS (WIFI_LINK_SETUP).
+// Config, either from the sketch (EspLink.wifi.begin) or NVS (WIFI_LINK_SETUP).
 static char cfg_ssid[33];
 static char cfg_pass[65];
 static char cfg_srv[65];          // "" = listen mode; else host or host:port
 static uint16_t cfg_port = BRIDGE_LINK_PORT;
 // Defaults to the library password, not "", so a board provisioned purely over
 // the wire is never an open port.
-static char cfg_pw[33] = "espbridge";
+static char cfg_pw[33] = "esplink";
 
 static bool armed = false;
 static bool joined_logged = false;

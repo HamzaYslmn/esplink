@@ -3,8 +3,8 @@ import math
 
 import pytest
 
-from espbridge import constants as C
-from espbridge.errors import UnsupportedError
+from esplink import constants as C
+from esplink.errors import UnsupportedError
 
 
 def image(n: int = 4096) -> bytes:

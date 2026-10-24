@@ -12,7 +12,7 @@ Provision each board once, over USB or an existing Wi-Fi link:
     esp.wifi.link_setup("ssid", "password")                    # listen mode
     esp.wifi.link_setup("ssid", "password", server="10.0.0.5")  # dials home
 
-...or bake it into the sketch with ``EspBridge.wifi.begin("ssid", "password")``
+...or bake it into the sketch with ``EspLink.wifi.begin("ssid", "password")``
 (add a third argument to dial home). Then:
 
     uv run python many_boards.py
@@ -22,9 +22,9 @@ Every board here is an ordinary Bridge, so `esp.gpio`, `esp.i2c`, drivers and
 """
 import time
 
-import espbridge
+import esplink
 
-with espbridge.Bridge.all(
+with esplink.Bridge.all(
         wifi=True, on_connect=lambda esp: print(f"+ {esp.info.ident}")) as boards:
     print("waiting for boards (Ctrl-C to stop)")
     boards.wait_for(1, timeout=None)

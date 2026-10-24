@@ -1,7 +1,7 @@
 """Driver registry: register_driver, esp.<name>() bound factory, discovery."""
 import pytest
 
-from espbridge import driver_names, drivers, register_driver
+from esplink import driver_names, drivers, register_driver
 
 
 @pytest.fixture()
@@ -31,9 +31,9 @@ def test_builtin_names_present():
 
 
 def test_get_driver_resolves_lazy_builtin():
-    from espbridge.drivers.dht import DHT
+    from esplink.drivers.dht import DHT
 
-    assert drivers.get_driver("dht") is DHT  # "espbridge.drivers.dht:DHT" string -> class
+    assert drivers.get_driver("dht") is DHT  # "esplink.drivers.dht:DHT" string -> class
     assert drivers.get_driver("nope") is None
 
 
@@ -41,9 +41,7 @@ def test_register_and_bound_factory(bridge, clean_registry):
     register_driver("dummy", _Dummy)
     assert "dummy" in driver_names()
 
-    factory = bridge.dummy
-    assert isinstance(factory, drivers.BoundDriver)
-    assert factory.cls is _Dummy
+    assert bridge.dummy.func is _Dummy
 
     dev = bridge.dummy(7, b=9)        # == _Dummy(bridge, 7, b=9)
     assert isinstance(dev, _Dummy)

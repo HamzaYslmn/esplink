@@ -3,8 +3,8 @@
 // takes pins via setPins(miso, sck, mosi) and does in-place full-duplex with
 // transfer(buf, count).
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <SPI.h>
 
 struct SpiState { bool inited; uint32_t freq; uint8_t mode; uint8_t msb; };

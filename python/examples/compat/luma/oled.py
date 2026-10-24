@@ -8,7 +8,7 @@ Identical to luma on a Raspberry Pi except the serial interface line:
     uv run luma/oled.py sh1106 relays     # ...on a named board, if you have several
 
 For panel adjustments (contrast, vertical offset, mirroring, clone column
-offset) use the native driver instead — espbridge.drivers.oled.OLED has a named
+offset) use the native driver instead — esplink.drivers.oled.OLED has a named
 method for each: see ../oled_ssd1306.py.
 """
 import sys
@@ -17,8 +17,8 @@ import time
 from luma.core.render import canvas
 from luma.oled.device import sh1106, ssd1306
 
-from espbridge import Bridge
-from espbridge.compat.luma import LumaI2C
+from esplink import Bridge
+from esplink.compat.luma import LumaI2C
 
 class sh1106_shifted(sh1106):
     """sh1106 with the panel column start corrected for clone panels.
@@ -49,6 +49,6 @@ with Bridge(board) as esp:
     device.persist = True
 
     with canvas(device) as draw:
-        draw.text((0, 10), "luma.oled via espbridge", fill="white")
+        draw.text((0, 10), "luma.oled via esplink", fill="white")
         draw.rectangle((0, 30, 127, 50), outline="white")
     time.sleep(5)

@@ -2,10 +2,10 @@
 // Wi-Fi module: STA + AP management and async network scanning.
 // Callbacks never write to serial directly — they enqueue events via
 // proto_send_event so that tx_task remains the sole serial writer.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/radio.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/radio.h"
+#include "esplink/link.h"
 #include <WiFi.h>
 
 static bool scanning = false;

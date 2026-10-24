@@ -21,8 +21,8 @@ import statistics
 import threading
 import time
 
-from espbridge import Bridge
-from espbridge import constants as C
+from esplink import Bridge
+from esplink import constants as C
 
 ECHO_SIZE = C.MAX_PAYLOAD  # 2048-byte payload per echo round trip
 
@@ -35,7 +35,7 @@ def bench_latency(esp: Bridge, n: int = 200) -> None:
 
 
 def bench_throughput(esp: Bridge, seconds: float = 2.0, workers: int = 1) -> float:
-    from espbridge import BridgeTimeoutError
+    from esplink import BridgeTimeoutError
 
     payload = bytes(i & 0xFF for i in range(ECHO_SIZE))
     done = failed = 0
@@ -93,7 +93,7 @@ def main() -> None:
     ap.add_argument("-p", "--port")
     ap.add_argument("--target-baud", type=int, help="upgrade to this baud (default: per-chip)")
     ap.add_argument("--no-upgrade", action="store_true", help="stay at 115200")
-    ap.add_argument("--password", default="espbridge", help="Bluetooth link password")
+    ap.add_argument("--password", default="esplink", help="Bluetooth link password")
     ap.add_argument("--usb-only", action="store_true")
     ap.add_argument("--ble-only", action="store_true")
     args = ap.parse_args()

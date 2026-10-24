@@ -1,8 +1,10 @@
 """LumaI2C adapter: command/data framing and chunking (no luma needed)."""
-from espbridge.compat.luma import LumaI2C
+from esplink.compat.luma import LumaI2C
 
 
 class FakeI2c:
+    max_write = 2046
+
     def __init__(self):
         self.writes = []
 

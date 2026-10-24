@@ -1,12 +1,12 @@
 #######################################
-# Syntax Coloring Map For python esp bridge
+# Syntax Coloring Map For esplink
 #######################################
 
 #######################################
 # Datatypes (KEYWORD1)
 #######################################
 
-EspBridgeClass	KEYWORD1
+EspLinkClass	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -21,4 +21,4 @@ wifi	KEYWORD2
 # Instances (KEYWORD2)
 #######################################
 
-EspBridge	KEYWORD2
+EspLink	KEYWORD2

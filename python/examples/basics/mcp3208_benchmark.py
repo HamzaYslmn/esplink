@@ -20,7 +20,7 @@ import sys
 import threading
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 CS = 5
 FREQ = 1_000_000        # MCP3208 ceiling is ~1 MHz at 3.3 V (2 MHz only at 5 V)

@@ -6,8 +6,8 @@ import time
 
 import pytest
 
-from espbridge import WatchEvent, constants as C
-from espbridge.errors import UnsupportedError
+from esplink import WatchEvent, constants as C
+from esplink.errors import RemoteError
 
 
 def test_event_parse_roundtrip():
@@ -109,12 +109,6 @@ def test_ids_are_recycled_after_remove(fw, bridge):
     assert b == a                                   # smallest free id reused
 
 
-def test_unsupported_firmware_raises(fw, bridge):
-    fw.watch_supported = False
-    with pytest.raises(UnsupportedError, match="0.5.0"):
-        bridge.watch.add("adc", pin=4, above=100)
-
-
 # ---- on-device actions (do= / undo=, WATCH_ADD2) ----
 
 def test_actions_use_add2_and_encode(fw, bridge):
@@ -134,7 +128,7 @@ def test_do_only_leaves_exit_action_empty(fw, bridge):
 
 def test_plain_add_carries_no_actions(fw, bridge):
     wid = bridge.watch.add("adc", pin=4, above=100)
-    assert "enter_action" not in fw.watches[wid]    # WATCH_ADD, 16-byte payload
+    assert fw.watches[wid]["enter_action"] == (0, 0, 0)  # no-op actions
 
 
 def test_bad_action_kind_raises_before_arming(fw, bridge):
@@ -143,11 +137,12 @@ def test_bad_action_kind_raises_before_arming(fw, bridge):
     assert fw.watches == {}
 
 
-def test_actions_on_old_firmware_raise_and_roll_back(fw, bridge):
-    fw.watch_add2_supported = False
-    with pytest.raises(UnsupportedError, match="0.16.0"):
+def test_rejected_rule_rolls_back(fw, bridge):
+    fw.watch_full = True
+    with pytest.raises(RemoteError, match="NO_MEM"):
         bridge.watch.add("gpio", pin=2, equals=1, do=("gpio", 26, 1),
                          callback=lambda e: None)
     # the id and callback were rolled back; a plain rule can reuse the slot
+    fw.watch_full = False
     wid = bridge.watch.add("adc", pin=4, above=100)
     assert wid == 1 and wid not in bridge.watch._cbs

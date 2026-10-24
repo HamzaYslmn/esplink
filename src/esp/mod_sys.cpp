@@ -1,9 +1,9 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // SYS: ping, info, baud switch, reset, heap stats, device name.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
-#include "espbridge/radio.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
+#include "esplink/radio.h"
 #include <esp_mac.h>
 #include <esp_heap_caps.h>
 #include <esp_sleep.h>

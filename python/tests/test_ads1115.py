@@ -1,9 +1,9 @@
-"""espbridge.drivers.ads1115.ADS1115: 16-bit ADC single-shot config + decode."""
+"""esplink.drivers.ads1115.ADS1115: 16-bit ADC single-shot config + decode."""
 import struct
 
 import pytest
 
-from espbridge.drivers.ads1115 import ADS1115
+from esplink.drivers.ads1115 import ADS1115
 
 
 class FakeI2c:

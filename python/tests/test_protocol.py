@@ -1,9 +1,9 @@
 """Codec tests: CRC16, COBS, frame round-trips, splitter resync."""
 import pytest
 
-from espbridge.constants import MAX_PAYLOAD
-from espbridge.errors import ProtocolError
-from espbridge.protocol import (
+from esplink.constants import MAX_PAYLOAD
+from esplink.errors import ProtocolError
+from esplink.protocol import (
     FrameSplitter,
     cobs_decode,
     cobs_encode,

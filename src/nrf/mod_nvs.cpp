@@ -3,8 +3,8 @@
 // Counterpart to src/esp/mod_nvs.cpp (which uses ESP Preferences). Runs on
 // slow_task. Keys are limited to 15 bytes to match the ESP NVS contract.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <InternalFileSystem.h>
 
 using namespace Adafruit_LittleFS_Namespace;

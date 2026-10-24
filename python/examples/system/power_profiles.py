@@ -13,7 +13,7 @@ receive duty is a third, separate knob: esp.espnow.power_save(window_ms).
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 
 def avg_ping_ms(esp, n: int = 50) -> float:

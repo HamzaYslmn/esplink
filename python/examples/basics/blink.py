@@ -1,7 +1,7 @@
 """Blink the on-board LED (GPIO 2 on most classic DevKits)."""
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 LED = 2
 

@@ -6,8 +6,8 @@
 // gain 1/6 → ~0..3.6 V full scale) the nominal conversion is mV ≈ raw*3600/4095.
 // This is uncalibrated (no per-chip eFuse correction like the ESP path).
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 static void adc_setup_once() {
   static bool done = false;

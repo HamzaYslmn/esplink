@@ -1,16 +1,16 @@
 // BLE transport link (nRF52): runs the bridge protocol over the Bluefruit
 // Nordic UART Service (BLEUart), whose UUIDs are exactly the protocol's link
 // UUIDs (6e400001/2/3-...). Counterpart to src/esp/link_ble.cpp (Bluedroid).
-// See espbridge/link.h for the public API contract.
+// See esplink/link.h for the public API contract.
 //
 // RX: the central writes the NUS RX characteristic; Bluefruit buffers it in the
 //   BLEUart FIFO, which rx_task drains via link_ble_read() through the same COBS
 //   pump as USB. TX: tx_task pushes one (MTU-3)-byte notification per pass via
 //   link_ble_write_chunk(). Auth (SYS_AUTH) is enforced in protocol.cpp.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
 
 #if BRIDGE_BLE
 
@@ -56,16 +56,16 @@ void link_ble_init(const char* password) {
   Bluefruit.begin();          // 1 peripheral connection, 0 central
   Bluefruit.setTxPower(4);    // dBm — max range; the board is wired-powered
 
-  // Advertised name "espbridge_<name-or-mac>" — see the ESP counterpart in
+  // Advertised name "esplink_<name-or-mac>" — see the ESP counterpart in
   // src/esp/link_ble.cpp for why only one identity fits.
   const char* custom = sys_device_name();
   char devname[10 + BRIDGE_NAME_MAX + 1];
   if (custom[0]) {
-    snprintf(devname, sizeof(devname), "espbridge_%s", custom);
+    snprintf(devname, sizeof(devname), "esplink_%s", custom);
   } else {
     uint8_t mac[6];
     nrf_read_mac(mac);
-    snprintf(devname, sizeof(devname), "espbridge_%02x%02x%02x%02x%02x%02x",
+    snprintf(devname, sizeof(devname), "esplink_%02x%02x%02x%02x%02x%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   }
   Bluefruit.setName(devname);

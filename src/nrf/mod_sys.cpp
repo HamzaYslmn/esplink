@@ -2,10 +2,10 @@
 // Counterpart to src/esp/mod_sys.cpp. This build has no CPU-freq scaling or
 // Wi-Fi; CPU_FREQ and light sleep report ST_UNSUPPORTED.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
-#include "espbridge/platform.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
+#include "esplink/platform.h"
 #include <InternalFileSystem.h>
 #include <nrf_soc.h>
 #include <nrf_gpio.h>

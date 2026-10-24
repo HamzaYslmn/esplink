@@ -1,7 +1,7 @@
-"""espbridge.drivers.pcf8574.PCF8574: I2C GPIO expander read/modify/write."""
+"""esplink.drivers.pcf8574.PCF8574: I2C GPIO expander read/modify/write."""
 import pytest
 
-from espbridge.drivers.pcf8574 import PCF8574
+from esplink.drivers.pcf8574 import PCF8574
 
 
 class FakeI2c:

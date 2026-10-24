@@ -9,7 +9,7 @@ using an LM75/TMP102-style I2C thermometer (any breakout at 0x48):
 
 Full guide (incl. shipping your driver as a pip plugin): docs/DRIVERS.md.
 """
-from espbridge import Bridge, register_driver
+from esplink import Bridge, register_driver
 
 
 class TempSensor:

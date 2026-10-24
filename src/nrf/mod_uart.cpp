@@ -2,8 +2,8 @@
 // TX from host, RX streamed back as UART_RX_EVT. Counterpart to src/esp/mod_uart.cpp.
 // nRF sets pins via setPins(rx, tx) before begin(baud).
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 static bool uart1_inited = false;
 

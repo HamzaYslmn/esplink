@@ -1,7 +1,7 @@
-"""espbridge.drivers.ds3231.DS3231: BCD time encode/decode + temperature."""
+"""esplink.drivers.ds3231.DS3231: BCD time encode/decode + temperature."""
 import pytest
 
-from espbridge.drivers.ds3231 import DS3231
+from esplink.drivers.ds3231 import DS3231
 
 
 class FakeI2c:

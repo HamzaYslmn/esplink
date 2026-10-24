@@ -8,7 +8,7 @@ on:
 
 jobs:
   # MARK: - Build sdist + universal wheel
-  # espbridge is pure-Python, so one `py3-none-any` wheel covers every platform.
+  # esplink is pure-Python, so one `py3-none-any` wheel covers every platform.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +23,7 @@ jobs:
         run: |
           arduino-cli core update-index \
             --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core install esp32:esp32@3.3.6 \
+          arduino-cli core install esp32:esp32@3.3.12 \
             --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
 
       - name: Build firmware image

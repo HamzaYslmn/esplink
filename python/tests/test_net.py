@@ -3,8 +3,8 @@ import struct
 
 import pytest
 
-from espbridge import constants as C
-from espbridge.errors import BridgeTimeoutError, RemoteError
+from esplink import constants as C
+from esplink.errors import BridgeTimeoutError, RemoteError
 
 
 @pytest.fixture()

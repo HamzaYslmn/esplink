@@ -2,7 +2,7 @@
 
 Flash the firmware first ([`../../docs/FIRMWARE.md`](../../docs/FIRMWARE.md)), plug the
 ESP32 in via USB (or pair over Bluetooth — see `wireless/`), then run any
-example with [uv](https://docs.astral.sh/uv/) — the local `espbridge` package
+example with [uv](https://docs.astral.sh/uv/) — the local `esplink` package
 from `..` is installed automatically (editable, so library changes apply
 immediately):
 
@@ -32,7 +32,7 @@ Without uv: `pip install -e "..[oled]"` once, then `python basics/blink.py`
 | `touch_read.py` | capacitive touch pads: poll, then board-pushed touch events |
 | `rtos_concurrency.py` | FreeRTOS task split: fast lane stays ~ms while radio blocks (+ live OLED) |
 | `async_fanout.py` | `AsyncBridge`: `await` calls and fan out concurrent I/O with `asyncio.gather` |
-| `shared_connection.py` | `espbridge.connect()`: one shared, thread-safe link many threads use — easy integration |
+| `shared_connection.py` | `esplink.connect()`: one shared, thread-safe link many threads use — easy integration |
 
 ## devices/ — sensors, LEDs, motors, buses (pure-Python drivers)
 
@@ -51,7 +51,7 @@ Without uv: `pip install -e "..[oled]"` once, then `python basics/blink.py`
 These drivers are pure Python over the bridge's primitives — **your own device
 is the same pattern, no firmware change**. See
 [`../../docs/DRIVERS.md`](../../docs/DRIVERS.md) for writing/registering one
-(`esp.<name>(...)`), and `espbridge drivers` to list what's available.
+(`esp.<name>(...)`), and `esplink drivers` to list what's available.
 
 ## system/ — on-board storage, sleep, firmware updates
 
@@ -68,7 +68,7 @@ is the same pattern, no firmware change**. See
 
 | example | shows |
 |---|---|
-| `ble_blink.py` | **GPIO over Bluetooth — no USB cable.** Default password `espbridge` |
+| `ble_blink.py` | **GPIO over Bluetooth — no USB cable.** Default password `esplink` |
 | `ble_scan.py` | BLE advertisement scan (ESP32 as scanner, over USB) |
 | `espnow_pair.py` | **two-board ESP-NOW chat, fully wireless** — Bluetooth to the board, ESP-NOW between boards, delivery ACKs |
 | `espnow_broadcast.py` | ESP-NOW broadcast over a Bluetooth-connected bridge: one sender, any number of listeners, RSSI per packet |
@@ -78,12 +78,12 @@ is the same pattern, no firmware change**. See
 | `usb_vs_ble_benchmark.py` | latency + throughput, first over USB then over Bluetooth |
 | `stress_test.py` | soak test: sustained, concurrent, multi-radio (Wi-Fi + BLE + ESP-NOW) load |
 
-Bridges advertise as `espbridge_<name>` (just `espbridge_<mac>` until you name
-one), so `espbridge scan --ble` finds every board in range and prints the
+Bridges advertise as `esplink_<name>` (just `esplink_<mac>` until you name
+one), so `esplink scan --ble` finds every board in range and prints the
 identity you address it by.
 
-The Bluetooth password defaults to `espbridge`; change it by passing it to
-`EspBridge.ble.begin("yourpassword")` in the Arduino sketch and reflashing.
+The Bluetooth password defaults to `esplink`; change it by passing it to
+`EspLink.ble.begin("yourpassword")` in the Arduino sketch and reflashing.
 
 ## network/ — Wi-Fi through the ESP32 radio
 
@@ -100,16 +100,16 @@ The Bluetooth password defaults to `espbridge`; change it by passing it to
 
 | example | shows |
 |---|---|
-| `oled_ssd1306.py` | SSD1306/SH1106 OLED via `espbridge.drivers.oled.OLED` — auto-handles the common clones, PIL drawing |
+| `oled_ssd1306.py` | SSD1306/SH1106 OLED via `esplink.drivers.oled.OLED` — auto-handles the common clones, PIL drawing |
 | `ble_oled.py` | the same display driven **over Bluetooth** — no COM port at all |
 
-## compat/ — ecosystem integrations (espbridge.compat)
+## compat/ — ecosystem integrations (esplink.compat)
 
 One folder per ecosystem — existing code from these libraries runs unchanged:
 
 | example | ecosystem |
 |---|---|
-| [`compat/gpiozero/led_button.py`](compat/gpiozero/) | **gpiozero** LED/Button via the espbridge pin factory |
+| [`compat/gpiozero/led_button.py`](compat/gpiozero/) | **gpiozero** LED/Button via the esplink pin factory |
 | [`compat/adafruit/bme280.py`](compat/adafruit/) | **Adafruit CircuitPython** drivers via the blinka shim |
 | [`compat/luma/oled.py`](compat/luma/) | **luma.oled** display library |
 | [`compat/smbus/read_register.py`](compat/smbus/) | **smbus2**-style I2C register access |
@@ -117,13 +117,13 @@ One folder per ecosystem — existing code from these libraries runs unchanged:
 
 ## Staying connected — stability tips
 
-- **Long-running scripts: use the managed link.** `espbridge.connect(keepalive=5)`
+- **Long-running scripts: use the managed link.** `esplink.connect(keepalive=5)`
   pings the board every 5 s and transparently reconnects after an unplug,
   reset, or brown-out — your code keeps using the same object
   (`shared_connection.py` shows the pattern).
 - **Address boards by name, not port.** USB COM numbers hop between reboots; a
   stored name doesn't, and it is the same string over USB, Bluetooth and Wi-Fi.
-  Name each board once (`espbridge -p COM7 set-name sensors`), then
+  Name each board once (`esplink -p COM7 set-name sensors`), then
   `Bridge("sensors")` finds it on any link. A MAC works in the same argument if
   you'd rather not name them. Bare `Bridge()` takes whichever board answers
   first — fine for one board on the desk, and it logs which one it picked.

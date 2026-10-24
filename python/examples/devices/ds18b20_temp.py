@@ -1,8 +1,8 @@
 """DS18B20 1-Wire thermometer(s) on GPIO 4 (4.7k pull-up to 3V3 required)."""
 import time
 
-from espbridge import Bridge
-from espbridge.drivers.ds18b20 import DS18B20
+from esplink import Bridge
+from esplink.drivers.ds18b20 import DS18B20
 
 with Bridge() as esp:
     roms = DS18B20.discover(esp, pin=4)

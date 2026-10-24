@@ -5,7 +5,7 @@ Start a UDP echo on some machine in the ESP32's network first, e.g.:
 """
 import sys
 
-from espbridge import Bridge
+from esplink import Bridge
 
 SSID = sys.argv[1] if len(sys.argv) > 1 else "your-ssid"
 PASSWORD = sys.argv[2] if len(sys.argv) > 2 else "your-password"
@@ -17,7 +17,7 @@ with Bridge(ble=False) as esp:
     st = esp.wifi.connect(SSID, PASSWORD)
     print(f"connected: ip={st.ip}")
     with esp.net.udp(5005) as sock:
-        sock.sendto(b"hello from python-esp-bridge", TARGET)
+        sock.sendto(b"hello from esplink", TARGET)
         data, addr = sock.recvfrom(timeout=5)
         print(f"reply from {addr}: {data!r}")
     esp.wifi.disconnect()    # powers the radio off, reclaiming ~50 KB of heap

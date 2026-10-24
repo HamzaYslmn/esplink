@@ -3,7 +3,7 @@
 No hardware: a fake SPI backend answers exactly like an MCP3202 would, so the
 command framing and 12-bit decode are exercised end to end.
 """
-from espbridge.drivers.mcp3202 import MCP3202
+from esplink.drivers.mcp3202 import MCP3202
 
 
 class FakeMCP3202SPI:

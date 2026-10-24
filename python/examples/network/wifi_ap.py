@@ -12,13 +12,13 @@ station connection can run at the same time (AP+STA mode).
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 # ble=False: on the classic ESP32 the Wi-Fi radio can't come up over a live
 # Bluetooth session (the firmware refuses with NO_MEM), so use the cable.
 with Bridge(ble=False) as esp:
-    ip = esp.wifi.ap_start("espbridge-demo", "letmein123", channel=6)
-    print(f"AP 'espbridge-demo' up at {ip} — join it (60 s) ...")
+    ip = esp.wifi.ap_start("esplink-demo", "letmein123", channel=6)
+    print(f"AP 'esplink-demo' up at {ip} — join it (60 s) ...")
     try:
         for remaining in range(60, 0, -10):
             print(f"  {remaining}s left, heap {esp.free_heap()['free']} B")

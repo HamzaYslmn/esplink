@@ -16,8 +16,8 @@ import statistics
 import threading
 import time
 
-from espbridge import Bridge, BridgeError, BridgeTimeoutError, RemoteError
-from espbridge import constants as C
+from esplink import Bridge, BridgeError, BridgeTimeoutError, RemoteError
+from esplink import constants as C
 
 ECHO = bytes(i & 0xFF for i in range(C.MAX_PAYLOAD))  # 2048-byte echo payload
 # A lost frame normally round-trips in ms; 3s is already 100x slack. Short
@@ -37,7 +37,7 @@ class _RetryCounter(logging.Handler):
             _retries[0] += 1
 
 
-logging.getLogger("espbridge").addHandler(_RetryCounter())
+logging.getLogger("esplink").addHandler(_RetryCounter())
 
 
 def fail(phase: str, msg: str) -> None:
@@ -204,7 +204,7 @@ def phase_wifi_coex(esp: Bridge, seconds: float) -> None:
         return
     print(f"\n[4] wifi coex — Wi-Fi up while pinging the link, {seconds:g}s")
     try:
-        ip = esp.wifi.ap_start("espbridge-stress", "stresstest123")
+        ip = esp.wifi.ap_start("esplink-stress", "stresstest123")
     except RemoteError as e:
         if e.status == C.Status.NO_MEM:
             # Firmware refusal, not a failure: on a classic ESP32 the Wi-Fi
@@ -382,7 +382,7 @@ def main() -> None:
     ap.add_argument("--espnow-only", action="store_true",
                     help="run only the ESP-NOW coex phase (skip the link suite) — "
                          "use with --ble + --peer to test BLE + ESP-NOW on one board")
-    ap.add_argument("--password", default="espbridge")
+    ap.add_argument("--password", default="esplink")
     ap.add_argument("--pings", type=int, default=3000)
     ap.add_argument("--secs", type=float, default=6.0)
     args = ap.parse_args()

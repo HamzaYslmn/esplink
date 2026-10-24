@@ -4,7 +4,7 @@ Only the import changes; pin numbers are ESP32 GPIO numbers.
 """
 import time
 
-from espbridge.compat import rpi_gpio as GPIO  # was: import RPi.GPIO as GPIO
+from esplink.compat import rpi_gpio as GPIO  # was: import RPi.GPIO as GPIO
 
 LED = 2
 

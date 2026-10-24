@@ -1,4 +1,4 @@
-"""espbridge.drivers.sx128x.SX128x: 2.4 GHz LoRa transceiver, command protocol.
+"""esplink.drivers.sx128x.SX128x: 2.4 GHz LoRa transceiver, command protocol.
 
 Hardware-free: a fake SPI records every framed transfer and a fake GPIO reports
 BUSY ready (low) while logging pin writes. The fake SPI returns canned replies
@@ -6,7 +6,7 @@ for read commands (GetIrqStatus / GetRxBufferStatus / ReadBuffer) keyed by opcod
 """
 import pytest
 
-from espbridge.drivers.sx128x import SX128x
+from esplink.drivers.sx128x import SX128x
 
 # Opcodes mirrored from the driver for assertions.
 SET_STANDBY = 0x80

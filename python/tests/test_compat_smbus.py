@@ -1,8 +1,8 @@
 """smbus2-compatible SMBus shim."""
 import pytest
 
-from espbridge.compat.smbus import SMBus
-from espbridge.errors import RemoteError
+from esplink.compat.smbus import SMBus
+from esplink.errors import RemoteError
 
 
 @pytest.fixture()

@@ -1,7 +1,7 @@
 /*
- * Python ESP Bridge — Nordic nRF52840 build (Seeed XIAO nRF52840 / Adafruit
+ * esplink — Nordic nRF52840 build (Seeed XIAO nRF52840 / Adafruit
  * Bluefruit boards). Flash once, then drive the board from Python over USB
- * serial or Bluetooth Low Energy with `pip install python-esp-bridge`.
+ * serial or Bluetooth Low Energy with `pip install esplink`.
  *
  * This build exposes a capability-gated subset of the bridge:
  *   BLE link, GPIO (+ edge-watch), ADC, PWM, I2C (e.g. SSD1306 OLED), SPI,
@@ -18,21 +18,21 @@
  *      the port doesn't appear.)
  *
  * Example usage from the host PC:
- *   from espbridge import Bridge
+ *   from esplink import Bridge
  *   with Bridge() as esp:               # USB serial
  *       print(esp.info)                 # chip == NRF52840, capabilities
- *   with Bridge(ble=True) as esp:       # Bluetooth (password "espbridge")
+ *   with Bridge(ble=True) as esp:       # Bluetooth (password "esplink")
  *       esp.gpio.write(13, 1)
  */
-#include <PythonEspBridge.h>
+#include <EspLink.h>
 
 void setup() {
-  EspBridge.usb.begin();   // USB serial — the bridge core starts with this
-  EspBridge.ble.begin();   // Bluetooth, password "espbridge"
-  // EspBridge.ble.begin("secret");   // ...or a password of your own ("" = open)
-  // EspBridge.wifi.begin(...) does not exist on this part — no Wi-Fi radio.
+  EspLink.usb.begin();   // USB serial — the bridge core starts with this
+  EspLink.ble.begin();   // Bluetooth, password "esplink"
+  // EspLink.ble.begin("secret");   // ...or a password of your own ("" = open)
+  // EspLink.wifi.begin(...) does not exist on this part — no Wi-Fi radio.
 
-  EspBridge.run();         // hands this task to the bridge; frees the loop task's stack
+  EspLink.run();         // hands this task to the bridge; frees the loop task's stack
 }
 
 void loop() {}             // never runs — remove the run() call above to use it

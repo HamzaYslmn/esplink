@@ -7,11 +7,11 @@ import time
 
 from gpiozero import LED, Button
 
-from espbridge import Bridge
-from espbridge.compat.gpiozero import EspBridgeFactory
+from esplink import Bridge
+from esplink.compat.gpiozero import EspLinkFactory
 
 esp = Bridge()
-factory = EspBridgeFactory(esp)
+factory = EspLinkFactory(esp)
 
 led = LED(2, pin_factory=factory)
 button = Button(4, bounce_time=0.03, pin_factory=factory)

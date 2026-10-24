@@ -7,8 +7,8 @@ BRIDGE_ENABLE_BLE 0 there, or use an S2/S3/C3/C6 board.
 """
 import time
 
-from espbridge import Bridge
-from espbridge.errors import UnsupportedError
+from esplink import Bridge
+from esplink.errors import UnsupportedError
 
 with Bridge() as esp:
     print(f"last wake cause: {esp.wake_cause()} (4 = timer)")

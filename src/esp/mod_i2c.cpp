@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // I2C master on Wire / Wire1.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <Wire.h>
 
 static bool i2c_inited[2];

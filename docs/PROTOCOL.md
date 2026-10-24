@@ -1,11 +1,11 @@
-# python-esp-bridge wire protocol (v1)
+# esplink wire protocol (v1)
 
 Binary protocol over USB serial between a host (PC / Raspberry Pi) and the
 bridge firmware on an ESP32. Optimized for speed and simplicity: no JSON, no
 base64, no compression.
 
-Canonical constants live in [`src/espbridge/commands.h`](../src/espbridge/commands.h) and
-[`python/espbridge/constants.py`](../python/espbridge/constants.py) — those two files
+Canonical constants live in [`src/esplink/commands.h`](../src/esplink/commands.h) and
+[`python/esplink/constants.py`](../python/esplink/constants.py) — those two files
 must stay identical in meaning.
 
 ## Framing
@@ -89,7 +89,7 @@ link its request arrived on; events broadcast to every authenticated link).
 | RX (host → board) | `6e400002-…` write / write-no-response |
 | TX (board → host) | `6e400003-…` notify, chunked to ATT MTU |
 
-Boards advertise the service plus the device name `espbridge_<identity>`, where
+Boards advertise the service plus the device name `esplink_<identity>`, where
 the identity is the stored name or, until one is set, the 12-hex MAC. The prefix
 marks a board as a bridge in any BLE scanner; the scan response fits ~26
 characters and the prefix spends 10, which is why only one identity fits and why
@@ -122,7 +122,7 @@ storm after a server restart is a self-inflicted outage.
 Credentials and the server address persist in NVS (namespace `bridge`, keys
 `wl_*`), so a board provisioned once over USB or BLE comes back on Wi-Fi after
 every reboot with no reflash: the firmware auto-starts a stored link ~2 s into
-boot, unless the sketch already called `EspBridge.wifi.begin(...)`.
+boot, unless the sketch already called `EspLink.wifi.begin(...)`.
 
 In *listen* mode the board also answers a UDP discovery probe on the same port:
 send `ESPB?` to the broadcast address, get back
@@ -143,8 +143,8 @@ branch the host is sitting on.
 
 USB implies physical access and needs no password. Over BLE **and TCP**, every
 command except `SYS_AUTH` is rejected with `ST_DENIED (0x0D)` until the client
-sends `SYS_AUTH` with the password as payload (firmware default `"espbridge"`,
-set via `EspBridge.ble.begin("...")` / `EspBridge.wifi.begin(..., password)`;
+sends `SYS_AUTH` with the password as payload (firmware default `"esplink"`,
+set via `EspLink.ble.begin("...")` / `EspLink.wifi.begin(..., password)`;
 empty string = open access). On success the firmware replies OK and then emits
 the `SYS_READY` banner to that client, so the handshake proceeds exactly like
 USB. Auth state is per-connection and resets on disconnect.
@@ -192,7 +192,7 @@ on core 0 while command N+1 executes on core 1.
 | `bridge_rx`   | 1    | 10   | decodes frames; runs fast handlers (SYS/GPIO/ADC/DAC/TOUCH/PWM/I2C/SPI/UART/NVS/MCPWM, plus 1-Wire — its IRQ-masking bit slots must stay off the radio core) inline; pumps GPIO edge + UART RX events |
 | `bridge_slow` | 0    | 9    | owns all Wi-Fi/NET/ESP-NOW/BLE + FS/OTA/RMT/TWAI/I2S/camera state; executes their (possibly blocking) handlers from a request queue; polls sockets and scan results |
 
-When the sketch omits `EspBridge.run()` its `loop()` keeps
+When the sketch omits `EspLink.run()` its `loop()` keeps
 running on core 1 (prio 1) next to `bridge_rx`, so user code gets the app
 core's slack while the bridge serves the host.
 
@@ -209,7 +209,7 @@ Consequences visible to the host:
 
 ## Command reference
 
-See the comment beside every id in `src/espbridge/commands.h` for exact payload layout;
+See the comment beside every id in `src/esplink/commands.h` for exact payload layout;
 module ids: SYS 0x00, GPIO 0x10, ADC 0x20, DAC 0x21, TOUCH 0x22, PWM 0x30,
 RMT 0x31, MCPWM 0x33, I2C 0x40, SPI 0x41, UART 0x42, ONEWIRE 0x43, TWAI 0x44,
 I2S 0x45, WIFI 0x50, NET 0x51, ESPNOW 0x52, ETH 0x53, BLE 0x60, FS 0x70,
@@ -225,7 +225,7 @@ The design rule of v0.3.0: the firmware moves *symbols*, the host implements
 *device protocols*. A symbol is `u16 BE = level<<15 | duration` in ticks of
 `1/tick_hz` (set at `RMT_INIT`, 1 kHz..80 MHz). One primitive set covers
 WS2812 strips, IR send/receive, DHT, HC-SR04 and stepper pulse generation —
-all decoding/encoding lives in Python (`espbridge.drivers.neopixel/ir/dht/hcsr04/stepper`).
+all decoding/encoding lives in Python (`esplink.drivers.neopixel/ir/dht/hcsr04/stepper`).
 
 | cmd | payload | reply |
 |-----|---------|-------|
@@ -246,7 +246,7 @@ trigger. Captures are capped at `RMT_MAX_RX_SYMS` (1020).
 ### 1-Wire (module 0x43)
 
 Bit-timing primitives only — ROM search, CRC8 and device drivers live in
-Python (`espbridge.onewire`, `espbridge.drivers.ds18b20`): `OW_RESET` (presence),
+Python (`esplink.onewire`, `esplink.drivers.ds18b20`): `OW_RESET` (presence),
 `OW_WRITE` (with optional strong pull-up for parasite power), `OW_READ`,
 `OW_TRIPLET` (one Maxim-search step: read bit + complement, write direction).
 
@@ -314,8 +314,8 @@ slow task so the teardown runs next to every other radio caller.
 ### ETH (module 0x53) and CAM (module 0x73) — compile-time opt-ins
 
 Disabled by default (build flags `-DBRIDGE_ENABLE_ETH=1` /
-`-DBRIDGE_ENABLE_CAM=1`). Board specifics live on the host: `espbridge.eth.PRESETS`
-(WT32-ETH01, Olimex POE, W5500-SPI…) and `espbridge.camera.PRESETS`
+`-DBRIDGE_ENABLE_CAM=1`). Board specifics live on the host: `esplink.eth.PRESETS`
+(WT32-ETH01, Olimex POE, W5500-SPI…) and `esplink.camera.PRESETS`
 (AI-Thinker ESP32-CAM, XIAO-S3-Sense…) send pin maps over the wire. Once
 Ethernet has an IP, all NET sockets ride it automatically (unified core-3.x
 Network stack). Camera frames are captured on-board and read out in ≤2 KB
@@ -369,7 +369,7 @@ and LittleFS on nRF52). Both travel together on every link:
 |---|---|
 | `SYS_INFO` / `SYS_READY` | `mac[6]` … then the name as the payload tail |
 | Wi-Fi discovery reply | `ESPB! \| mac[6] \| port u16 \| name[]` |
-| BLE advertised name | `espbridge_<name>`, or `espbridge_<mac>` while unnamed |
+| BLE advertised name | `esplink_<name>`, or `esplink_<mac>` while unnamed |
 
 Neither tail is length-prefixed — the frame and the datagram already delimit
 them — and both are optional, so a host reading the head still works against

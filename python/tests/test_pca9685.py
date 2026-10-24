@@ -1,7 +1,7 @@
-"""espbridge.drivers.pca9685.PCA9685: 16-channel 12-bit PWM / servo driver."""
+"""esplink.drivers.pca9685.PCA9685: 16-channel 12-bit PWM / servo driver."""
 import pytest
 
-from espbridge.drivers.pca9685 import PCA9685
+from esplink.drivers.pca9685 import PCA9685
 
 MODE1 = 0x00
 PRESCALE = 0xFE

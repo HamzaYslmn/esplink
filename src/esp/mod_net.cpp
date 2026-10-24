@@ -2,8 +2,8 @@
 // Network module: TCP and UDP sockets proxied over the serial bridge.
 // Each socket has a credit window so that incoming TCP data is held back
 // (backpressured) rather than dropped when the host cannot consume it fast enough.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <NetworkClient.h>
 #include <NetworkServer.h>
 #include <NetworkUdp.h>

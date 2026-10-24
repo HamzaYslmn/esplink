@@ -1,7 +1,7 @@
 """ESP-NOW broadcast, fully wireless — Bluetooth to the boards, ESP-NOW between them.
 
 Scans for every board advertising the bridge service, connects to each over
-Bluetooth (no USB cables; default password "espbridge"), puts them in the
+Bluetooth (no USB cables; default password "esplink"), puts them in the
 battery power profile, and makes them all broadcast to ff:ff:ff:ff:ff:ff and
 listen — boards in range just talk:
 
@@ -18,7 +18,7 @@ import contextlib
 import sys
 import time
 
-from espbridge import Bridge, BridgeError, find_ble_devices
+from esplink import Bridge, BridgeError, find_ble_devices
 
 # .ident, not .mac: a named board advertises its name (only one identity fits
 # the scan response), so .mac is empty for those — .ident is always a selector.
@@ -29,7 +29,7 @@ if not picks:
 boards = []
 try:
     for sel in picks:
-        esp = Bridge(sel, ble=True, password="espbridge")
+        esp = Bridge(sel, ble=True, password="esplink")
         boards.append(esp)
         mac = esp.espnow.begin()       # set up at full speed...
         esp.power_mode("battery")      # ...then relax the radio

@@ -1,11 +1,11 @@
-# python-esp-bridge
+# esplink
 
 Control every ESP32 peripheral from Python over USB serial — GPIO, PWM, ADC,
 DAC, touch, I2C, SPI, UART, Wi-Fi (with TCP/UDP sockets through the ESP32
 radio) and BLE. Flash the bridge firmware once, then it's all Python.
 
 ```python
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:                      # USB first, then Bluetooth, then Wi-Fi
     esp.gpio.mode(2, "output")
@@ -22,6 +22,6 @@ with Bridge() as esp:                      # USB first, then Bluetooth, then Wi-
   `esp.radio_off()` silences Wi-Fi + Bluetooth entirely for jitter-sensitive
   realtime work (frees ~110 KB heap, unlocks the ADC2 pins).
 - Firmware (flash once with Arduino IDE) and full docs:
-  **<https://github.com/HamzaYslmn/python-esp-bridge>**
+  **<https://github.com/HamzaYslmn/esplink>**
 - Works on Raspberry Pi OS, Linux, Windows, macOS (Python ≥ 3.11, pyserial).
-- `espbridge` CLI: connection info; `espbridge ports`: list candidate ports.
+- `esplink` CLI: connection info; `esplink ports`: list candidate ports.

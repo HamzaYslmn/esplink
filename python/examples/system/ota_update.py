@@ -11,7 +11,7 @@ Works over Bluetooth too — wireless firmware updates.
 """
 import sys
 
-from espbridge import Bridge
+from esplink import Bridge
 
 if len(sys.argv) < 2:
     raise SystemExit(f"usage: {sys.argv[0]} <firmware.bin> [board-name-or-mac]")

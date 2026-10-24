@@ -1,0 +1,17 @@
+# arduino-cli project file: `arduino-cli compile examples/Bridge` and
+# `arduino-cli upload -p COM3 examples/Bridge` pick the classic board up — no --fqbn.
+# Minimal SPIFFS keeps OTA; switching schemes throws the build cache away.
+default_fqbn: esp32:esp32:esp32:PartitionScheme=min_spiffs
+
+profiles:
+  # ESP32-S3-DevKitC-1 N16R8: `arduino-cli compile --profile esp32s3 examples/Bridge`.
+  # CDCOnBoot puts Serial on the USB port, UploadMode gives esptool a ROM port, and
+  # min_spiffs is the roomiest pair of OTA banks this board menu offers.
+  esp32s3:
+    notes: ESP32-S3-DevKitC-1, N16R8. NimBLE, and min_spiffs for the two OTA banks.
+    fqbn: esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=default,UploadMode=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=min_spiffs
+    platforms:
+      - platform: esp32:esp32 (3.3.12)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - dir: ../..   # this repo's own library — profiles see only what they list

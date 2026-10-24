@@ -4,7 +4,7 @@ The sensor runs at 5 V — divide ECHO down to 3.3 V (1k/2k divider).
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     sonar = esp.hcsr04(trig=5, echo=18)   # bundled driver factory (docs/DRIVERS.md)

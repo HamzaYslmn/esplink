@@ -1,4 +1,4 @@
-# python-esp-bridge
+# esplink
 
 ESP32'yi USB **veya Bluetooth** üzerinden Raspberry Pi'ye ya da herhangi bir
 bilgisayara bağlayın; GPIO, PWM, ADC, DAC, kapasitif dokunma, I2C, SPI, ek
@@ -19,7 +19,7 @@ için Python tarafında uygulanır.
 ┌────────────────┐  USB serial (≤2 Mbaud) veya BLE  ┌─────────────────────┐
 │ Pi / PC        │ ───────────────────────────────► │ ESP32 (bridge fw)   │
 │ Python:        │   binary protocol, COBS+CRC16    │ FreeRTOS tasks:     │
-│  espbridge     │ ◄─────────────────────────────── │  tx / rx / network  │
+│  esplink     │ ◄─────────────────────────────── │  tx / rx / network  │
 └────────────────┘        yanıtlar + async olaylar  └─────────────────────┘
 ```
 
@@ -36,31 +36,31 @@ gerekir.*
    yazar:
 
    ```sh
-   uvx --from "python-esp-bridge[flash]" flash   # uv ile kurmadan çalıştırma
+   uvx --from "esplink[flash]" flash   # uv ile kurmadan çalıştırma
    ```
 
    Kendiniz derlemek isterseniz Arduino IDE Library Manager'dan
-   **`python esp bridge`** kütüphanesini kurun, *File → Examples →
-   python esp bridge → Bridge* örneğini açın, partition scheme olarak
-   *Huge APP* seçin ve Upload'a basın. Sketch yalnızca `EspBridge.usb.begin();`
-   `EspBridge.ble.begin(); EspBridge.run();` satırlarından oluşur
+   **`esplink`** kütüphanesini kurun, *File → Examples →
+   esplink → Bridge* örneğini açın, partition scheme olarak
+   *Huge APP* seçin ve Upload'a basın. Sketch yalnızca `EspLink.usb.begin();`
+   `EspLink.ble.begin(); EspLink.run();` satırlarından oluşur
    çağrısından ibarettir. Ayrıntılar: [`FIRMWARE.md`](FIRMWARE.md).
 
 2. **Python kütüphanesini** Pi'ye ya da PC'ye kurun. pip ile:
 
    ```sh
-   pip install python-esp-bridge            # USB + Bluetooth birlikte gelir
-   pip install "python-esp-bridge[oled]"    # + OLED ekranlar için Pillow
-   pip install "python-esp-bridge[mcp]"     # + MCP sunucusu (espbridge-mcp)
-   pip install "python-esp-bridge[flash]"   # + `espbridge flash` için esptool
+   pip install esplink            # USB + Bluetooth birlikte gelir
+   pip install "esplink[oled]"    # + OLED ekranlar için Pillow
+   pip install "esplink[mcp]"     # + MCP sunucusu (esplink-mcp)
+   pip install "esplink[flash]"   # + `esplink flash` için esptool
    ```
 
    ...veya [uv](https://docs.astral.sh/uv/) ile:
 
    ```sh
-   uv add python-esp-bridge                 # uv projesine ekler (USB + Bluetooth)
-   uv add "python-esp-bridge[oled]"         # ekstra paketle (oled / mcp / all)
-   uv pip install python-esp-bridge         # ya da aktif ortama kurar
+   uv add esplink                 # uv projesine ekler (USB + Bluetooth)
+   uv add "esplink[oled]"         # ekstra paketle (oled / mcp / all)
+   uv pip install esplink         # ya da aktif ortama kurar
    ```
 
    Bluetooth ek paket gerektirmeden çalışır. Eski `[ble]` ekstra seçeneği,
@@ -69,7 +69,7 @@ gerekir.*
 3. **Başlayın:**
 
    ```python
-   from espbridge import Bridge
+   from esplink import Bridge
 
    with Bridge() as esp:                      # önce USB, sonra Bluetooth, sonra Wi-Fi
        print(esp.info)                        # çip, MAC, yetenekler
@@ -88,12 +88,12 @@ gerekir.*
        status, body = esp.net.http_get("http://example.com/")  # ...modeminiz olur
    ```
 
-   **USB kablosu olmadan** da kullanabilirsiniz. Kartlar `espbridge_<name>` adıyla
-   yayın yapar ve parola ister. Varsayılan parola `espbridge`; sketch içinde
-   `EspBridge.ble.begin("yourpassword")` ile değiştirilebilir:
+   **USB kablosu olmadan** da kullanabilirsiniz. Kartlar `esplink_<name>` adıyla
+   yayın yapar ve parola ister. Varsayılan parola `esplink`; sketch içinde
+   `EspLink.ble.begin("yourpassword")` ile değiştirilebilir:
 
    ```python
-   with Bridge(ble=True, password="espbridge") as esp:   # Bluetooth üzerinden
+   with Bridge(ble=True, password="esplink") as esp:   # Bluetooth üzerinden
        esp.gpio.write(2, 1)
    ```
 
@@ -104,9 +104,9 @@ gerekir.*
    seçmek için `Bridge("relays")`, belirli bir seri port için `port="COM7"`
    verin.
 
-   Komut satırında `espbridge` bağlantı bilgisini yazdırır; `espbridge ports`
-   aday seri portları listeler; `espbridge scan` bağlı kartları yoklar,
-   `espbridge scan --ble` ise Bluetooth üzerinden yayın yapan bridge'leri bulur.
+   Komut satırında `esplink` bağlantı bilgisini yazdırır; `esplink ports`
+   aday seri portları listeler; `esplink scan` bağlı kartları yoklar,
+   `esplink scan --ble` ise Bluetooth üzerinden yayın yapan bridge'leri bulur.
 
 ## Özellikler
 
@@ -142,12 +142,12 @@ gerekir.*
 kendi sürücünüzü eklemek için firmware değiştirmeniz gerekmez:
 
 ```python
-from espbridge.drivers.neopixel import NeoPixel   # WS2812/SK6812 şeritler
-from espbridge.drivers.dht import DHT             # DHT11/DHT22 sıcaklık+nem
-from espbridge.drivers.ds18b20 import DS18B20     # 1-Wire termometreler (multi-drop)
-from espbridge.drivers.hcsr04 import HCSR04       # ultrasonik mesafe ölçümü
-from espbridge.drivers.ir import IrSender, IrReceiver  # NEC kumandalar + ham IR
-from espbridge.drivers.stepper import Stepper     # rampalı A4988/DRV8825
+from esplink.drivers.neopixel import NeoPixel   # WS2812/SK6812 şeritler
+from esplink.drivers.dht import DHT             # DHT11/DHT22 sıcaklık+nem
+from esplink.drivers.ds18b20 import DS18B20     # 1-Wire termometreler (multi-drop)
+from esplink.drivers.hcsr04 import HCSR04       # ultrasonik mesafe ölçümü
+from esplink.drivers.ir import IrSender, IrReceiver  # NEC kumandalar + ham IR
+from esplink.drivers.stepper import Stepper     # rampalı A4988/DRV8825
 
 NeoPixel(esp, pin=5, n=30).fill((0, 0, 64))
 print(DHT(esp, 4).read())                 # (23.1, 65.5)
@@ -157,10 +157,10 @@ Stepper(esp, step_pin=12, dir_pin=14).move(400, speed=800, accel=1600)
 ### Kendi sürücünüzü getirin
 
 Bunlar **referans uygulamalardır, sınır değildir.** Paketle gelen her sürücü
-[`espbridge/drivers/`](../python/espbridge/drivers/) altında durur. Bir sürücü,
+[`esplink/drivers/`](../python/esplink/drivers/) altında durur. Bir sürücü,
 constructor'ı ilk argüman olarak bridge alan ve yukarıdaki primitive'lerle
 cihazla konuşan normal bir Python sınıfıdır. Örneğin
-[`drivers/dht.py`](../python/espbridge/drivers/dht.py) 75 satırdır. Yani
+[`drivers/dht.py`](../python/esplink/drivers/dht.py) 75 satırdır. Yani
 herhangi bir sensör, ekran ya da protokol host tarafında yazılmış bir sınıfla
 eklenebilir; **firmware değişmez**:
 
@@ -180,13 +180,13 @@ anda sürücünüzün her bridge üzerinde görünmesini sağlayan bir pip paket
 dağıtabilirsiniz:
 
 ```python
-from espbridge import register_driver
+from esplink import register_driver
 register_driver("mytemp", MyTempSensor)
 esp.mytemp(address=0x48).read_c()             # == MyTempSensor(esp, address=0x48)
 ```
 
-`espbridge drivers` kullanılabilen her şeyi listeler: paketle gelen
-[`drivers/`](../python/espbridge/drivers/) ve kurulu eklentiler. Tam rehber:
+`esplink drivers` kullanılabilen her şeyi listeler: paketle gelen
+[`drivers/`](../python/esplink/drivers/) ve kurulu eklentiler. Tam rehber:
 [**`DRIVERS.md`**](DRIVERS.md). Adafruit / luma / gpiozero / smbus2
 ekosistemlerinde hazır bir sürücü varsa, [uyumluluk katmanları](#zaten-bildiginiz-kutuphaneleri-kullanin)
 üzerinden değiştirmeden çalışır; yeniden yazmanız gerekmez.
@@ -211,15 +211,15 @@ Kolay entegrasyon için her yere `Bridge` taşımayın. İhtiyacınız olan yerd
 alırsınız:
 
 ```python
-import espbridge
+import esplink
 
-esp = espbridge.connect(ble=False)      # her thread/modülden aynı canlı bağlantı
+esp = esplink.connect(ble=False)      # her thread/modülden aynı canlı bağlantı
 esp.gpio.write(2, 1)                     # eşzamanlı çağrılar için güvenli
 
 # örn. FastAPI/Flask route'u; tüm istekler tek bağlantıyı paylaşır:
 @app.get("/adc/{pin}")
 def read(pin: int):
-    return {"mV": espbridge.connect(ble=False).adc.read_mv(pin)}
+    return {"mV": esplink.connect(ble=False).adc.read_mv(pin)}
 ```
 
 `await` kullanıyorsanız herhangi bir bridge'i sarın ve eşzamanlı I/O'yu
@@ -227,9 +227,9 @@ def read(pin: int):
 ([`async_fanout.py`](../python/examples/basics/async_fanout.py)):
 
 ```python
-from espbridge import AsyncBridge
+from esplink import AsyncBridge
 
-async with AsyncBridge(ble=False) as esp:        # veya AsyncBridge.wrap(espbridge.connect())
+async with AsyncBridge(ble=False) as esp:        # veya AsyncBridge.wrap(esplink.connect())
     t, h = await asyncio.gather(esp.adc.read(34), esp.adc.read(35))
 ```
 
@@ -240,7 +240,7 @@ process'ler onunla konuşsun. Bkz.
 
 ## Zaten bildiğiniz kütüphaneleri kullanın
 
-espbridge popüler Python donanım ekosistemlerinin wire protokollerini konuşur.
+esplink popüler Python donanım ekosistemlerinin wire protokollerini konuşur.
 Bu yüzden mevcut kodlar, sürücüler ve eğitimler değişmeden çalışır; sadece
 Raspberry Pi pinlerinin yerini ESP32 pinleri alır.
 
@@ -248,9 +248,9 @@ Raspberry Pi pinlerinin yerini ESP32 pinleri alır.
 
 ```python
 from gpiozero import LED, Button
-from espbridge.compat.gpiozero import EspBridgeFactory
+from esplink.compat.gpiozero import EspLinkFactory
 
-factory = EspBridgeFactory(esp)
+factory = EspLinkFactory(esp)
 led, btn = LED(2, pin_factory=factory), Button(4, pin_factory=factory)
 btn.when_pressed = led.toggle
 ```
@@ -260,7 +260,7 @@ busio/digitalio uyumlu I2C, SPI ve DigitalInOut:
 
 ```python
 from adafruit_bme280.basic import Adafruit_BME280_I2C
-from espbridge.compat.blinka import I2C
+from esplink.compat.blinka import I2C
 
 bme = Adafruit_BME280_I2C(I2C(esp))     # sürücü köprü üstünden çalıştığını bilmez
 print(bme.temperature)
@@ -269,22 +269,22 @@ print(bme.temperature)
 **smbus2** - klasik Pi I2C kodu, değiştirmeden:
 
 ```python
-from espbridge.compat.smbus import SMBus
+from esplink.compat.smbus import SMBus
 bus = SMBus(esp)                        # smbus2.SMBus(1) yerine
 temp = bus.read_byte_data(0x48, 0x00)
 ```
 
 **luma.oled / luma.lcd** I2C ve SPI ekran arayüzleri (`LumaI2C`, `LumaSPI`),
-**RPi.GPIO** için `espbridge.compat.rpi_gpio` uyumluluk katmanı ve native
+**RPi.GPIO** için `esplink.compat.rpi_gpio` uyumluluk katmanı ve native
 nesneler de stdlib alışkanlıklarını izler: UART portları pyserial benzeridir
 (`in_waiting`, `readline`), köprülenmiş TCP/UDP soketleri
 `settimeout`/`recv`/`sendall` destekler.
 
 I2C OLED'ler (SSD1306 / SH1106 / yaygın klonları) doğrudan desteklenir.
-`pip install "python-esp-bridge[oled]"` kurun ve PIL ile çizin:
+`pip install "esplink[oled]"` kurun ve PIL ile çizin:
 
 ```python
-from espbridge.drivers.oled import OLED
+from esplink.drivers.oled import OLED
 
 oled = OLED(esp)                # bus init + auto-detect + klonlara güvenli power-up
 with oled.draw() as d:          # d bir PIL ImageDraw'dur
@@ -302,34 +302,34 @@ I2C tarayabilir ve bunları doğal dille yönetebilir.
 Sunucuyu bir kez kurun, sonra kartı takın; port otomatik algılanır:
 
 ```bash
-uv tool install "python-esp-bridge[mcp]"     # veya: pip install "python-esp-bridge[mcp]"
+uv tool install "esplink[mcp]"     # veya: pip install "esplink[mcp]"
 ```
 
 **Claude Code, Gemini CLI, Codex CLI, Antigravity, Cursor/Windsurf ve Ollama**
-ile çalışır. Hepsi aynı `espbridge-mcp` komutunu başlatır. Bu repo Claude Code
+ile çalışır. Hepsi aynı `esplink-mcp` komutunu başlatır. Bu repo Claude Code
 (`.mcp.json`) ve Gemini CLI (`.gemini/settings.json`) için hazır ayarlarla
 gelir; asistanı repo içinde açmanız yeterlidir. Diğer istemciler aynı tek
 satırlık yapılandırmayı kullanır (`mcpServers` anahtarı):
 
 ```jsonc
 { "mcpServers": {
-    "espbridge": { "command": "espbridge-mcp", "args": [] }
+    "esplink": { "command": "esplink-mcp", "args": [] }
 } }
 ```
 
 Araçlar çevre birimine göre gruplanır (`gpio_*`, `i2c_*`, `wifi_*`, ...);
 ham byte payload'ları hex string olarak girer ve çıkar. Kendi sunucunuza
-gömmek için `from espbridge.mcp import build_server` kullanın. **Codex,
+gömmek için `from esplink.mcp import build_server` kullanın. **Codex,
 Antigravity ve Ollama dahil asistan bazlı kurulum: [`MCP.md`](MCP.md).**
 
 ### Birden çok ESP32
 
-Her karta bir kez ad verin (`espbridge -p COM7 set-name relays`); ad kartın
+Her karta bir kez ad verin (`esplink -p COM7 set-name relays`); ad kartın
 flash'ına yazılır, yeniden başlatmadan ve port numarası değişiminden
 etkilenmez. Sonra ne portları ne de MAC'leri düşünmeniz gerekir:
 
 ```python
-from espbridge import Bridge
+from esplink import Bridge
 
 esp = Bridge()                            # tek kart -> ilk yanıt veren
 esp = Bridge("relays")                    # tek ad   -> yalnızca o kart
@@ -351,7 +351,7 @@ taşındığı için USB, Bluetooth ve Wi-Fi üzerinde aynı şekilde çalışı
 COM portu veya IP adresi değildir — onların kendi anahtarları var, yani dizenin
 şeklinden hiçbir şey tahmin edilmez.
 
-Adlar 16 karakterle sınırlıdır; bu, reklam edilen `espbridge_<name>` dizesini
+Adlar 16 karakterle sınırlıdır; bu, reklam edilen `esplink_<name>` dizesini
 Bluetooth tarama yanıtının aldığı ~26 karakterin içinde tutar. Daha uzun bir ad
 havada kırpılacağı için baştan reddedilir. İstenen kartların hepsi bulunamazsa
 sonuç kısmi bir çalışma değil, hatadır.
@@ -370,7 +370,7 @@ esp.free_heap()                 # firmware'den heap + düşen frame sayaçları
 ```
 
 ```bash
-ESPBRIDGE_DEBUG=1 python app.py   # her istek/yanıtı adlarıyla izler
+ESPLINK_DEBUG=1 python app.py   # her istek/yanıtı adlarıyla izler
 ```
 
 Yoğun bağlantıda frame kayıpları artık baştan engellenir: pipeline edilen
@@ -384,10 +384,10 @@ Manager'a yayımlanabilir. Python paketi `python/` altında yer alır.
 
 | yol | açıklama |
 |-----|----------|
-| [`../src/`](../src/) + [`../examples/Bridge/`](../examples/Bridge/) | Arduino kütüphanesi: bir kez flash edilen firmware (C/C++) + örnek sketch (`EspBridge.usb/ble/wifi.begin()`) |
+| [`../src/`](../src/) + [`../examples/Bridge/`](../examples/Bridge/) | Arduino kütüphanesi: bir kez flash edilen firmware (C/C++) + örnek sketch (`EspLink.usb/ble/wifi.begin()`) |
 | `../library.properties`, `../keywords.txt` | Arduino Library Manager metadata'sı (registry'nin istediği gibi repo kökünde) |
-| [`../python/`](../python/) | Python paketi `python-esp-bridge` (`import espbridge`), kendi `tests/` klasörü ve gruplanmış `examples/` dizinleri (`basics/`, `devices/`, `system/`, `wireless/`, `network/`, `displays/`, `compat/`) |
-| [`MCP.md`](MCP.md) | MCP sunucusu (`espbridge-mcp`): bridge'i bir AI agent üzerinden kullanma |
+| [`../python/`](../python/) | Python paketi `esplink` (`import esplink`), kendi `tests/` klasörü ve gruplanmış `examples/` dizinleri (`basics/`, `devices/`, `system/`, `wireless/`, `network/`, `displays/`, `compat/`) |
+| [`MCP.md`](MCP.md) | MCP sunucusu (`esplink-mcp`): bridge'i bir AI agent üzerinden kullanma |
 | [`PROTOCOL.md`](PROTOCOL.md) | binary wire protocol tanımı (framing, transport'lar, auth) |
 | [`FIRMWARE.md`](FIRMWARE.md) | firmware flash etme, partition scheme ve build flag referansı |
 
@@ -399,7 +399,7 @@ CP2102/CH340 USB). **ESP32-S2/S3/C3/C6/H2** aynı sketch ile derlenir
 bağlantı sırasında firmware tarafından bildirilir; Python API, çipinizde
 olmayan özellikler için hızlı ve açık hata verir.
 
-Klasik ESP32 (CP2102) üzerinde **arduino-esp32 core 3.3.6** ile test edildi.
+Klasik ESP32 (CP2102) üzerinde **arduino-esp32 core 3.3.12** ile test edildi.
 Firmware **Minimal SPIFFS** partition scheme ile flash edildi (1.9 MB app +
 OTA; firmware bu slotun yaklaşık %95'ini kullanır). OTA gerekmiyorsa
 `Huge APP` de çalışır. Doğrulananlar: 1.5 Mbaud USB, BLE bağlantısı, ESP-NOW

@@ -3,7 +3,7 @@
 No hardware: a fake SPI backend answers exactly like an MCP3208 would, so the
 command framing and 12-bit decode are exercised end to end.
 """
-from espbridge.drivers.mcp3208 import MCP3208
+from esplink.drivers.mcp3208 import MCP3208
 
 
 class FakeMCP3208SPI:

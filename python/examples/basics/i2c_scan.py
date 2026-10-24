@@ -1,5 +1,5 @@
 """Scan the I2C bus (SDA=21, SCL=22 — the classic DevKit defaults)."""
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     esp.i2c.init(sda=21, scl=22, freq=400_000)

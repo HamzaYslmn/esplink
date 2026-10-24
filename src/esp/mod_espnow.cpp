@@ -8,10 +8,10 @@
 // MIN_MODEM keeps the arbiter stable); never call esp_coex_* manually; a connected
 // STA / active AP owns the channel and ESP-NOW inherits it — only lock a channel
 // when the radio is idle.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/radio.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/radio.h"
+#include "esplink/link.h"
 
 #if BRIDGE_HAS_ESPNOW
 

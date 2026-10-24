@@ -3,8 +3,8 @@
 // instances, so up to that many independent PWM pins are supported at once.
 // Counterpart to src/esp/mod_pwm.cpp (which uses the ESP LEDC API).
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 // The nRF PWM countertop is 15-bit, so the duty resolution caps at 14 bits
 // (1<<15 = 32768 exceeds the 0x7FFF countertop limit).

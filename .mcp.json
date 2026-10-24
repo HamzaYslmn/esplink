@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "espbridge": {
-      "command": "espbridge-mcp",
+    "esplink": {
+      "command": "esplink-mcp",
       "args": []
     }
   }

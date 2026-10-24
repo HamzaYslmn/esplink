@@ -1,5 +1,5 @@
 """BLE scan through the ESP32: list nearby advertisers for 10 seconds."""
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     print("scanning BLE for 10 s ...")

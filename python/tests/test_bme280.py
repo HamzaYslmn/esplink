@@ -1,4 +1,4 @@
-"""espbridge.drivers.bme280.BME280: ID/config protocol + compensation math.
+"""esplink.drivers.bme280.BME280: ID/config protocol + compensation math.
 
 What is verified here (all hardware-free, via FakeI2c):
 
@@ -22,7 +22,7 @@ import struct
 
 import pytest
 
-from espbridge.drivers.bme280 import BME280
+from esplink.drivers.bme280 import BME280
 
 
 # --- Canonical Bosch worked-example trimming values (datasheet 4.2.3) ---------

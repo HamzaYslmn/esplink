@@ -3,8 +3,8 @@ import struct
 
 import pytest
 
-from espbridge import constants as C
-from espbridge.can import Message
+from esplink import constants as C
+from esplink.can import Message
 
 
 def emit_can(fw, msg_id, data, flags=0):

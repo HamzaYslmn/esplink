@@ -1,6 +1,6 @@
 # Writing your own device driver
 
-python-esp-bridge ships drivers for a handful of common parts — DHT, OLED,
+esplink ships drivers for a handful of common parts — DHT, OLED,
 NeoPixel, DS18B20, HC-SR04, IR, stepper. Those are **reference
 implementations, not the whole story.** There are far more sensors, displays
 and protocols than any one library can carry, so the design makes *your* device
@@ -26,9 +26,9 @@ The firmware exposes only generic hardware **primitives**:
 
 A **driver** is just a Python class that speaks a device's protocol *over those
 primitives*. Every bundled driver lives in
-[`espbridge/drivers/`](../python/espbridge/drivers/):
-[`drivers/dht.py`](../python/espbridge/drivers/dht.py) is 75 lines over
-`esp.rmt`; [`drivers/oled.py`](../python/espbridge/drivers/oled.py) is built on
+[`esplink/drivers/`](../python/esplink/drivers/):
+[`drivers/dht.py`](../python/esplink/drivers/dht.py) is 75 lines over
+`esp.rmt`; [`drivers/oled.py`](../python/esplink/drivers/oled.py) is built on
 `esp.i2c`. Because the protocol logic lives in Python, it's easy to read, test
 on the host, and change without touching C++.
 
@@ -60,7 +60,7 @@ class MyTempSensor:
 ```
 
 ```python
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     esp.i2c.init(sda=21, scl=22)
@@ -75,7 +75,7 @@ That already works, everywhere, for anyone. The next two steps only add
 - **Take the bus number / pins as keyword args** with sensible defaults, so the
   same driver works on either I2C bus and the user can override.
 - **Don't re-init the bus** if you can avoid it — several devices usually share
-  one bus. The bundled [`pcf8574`](../python/espbridge/drivers/pcf8574.py) only
+  one bus. The bundled [`pcf8574`](../python/esplink/drivers/pcf8574.py) only
   calls `i2c.init()` when the caller explicitly passes pins.
 - **Pure decode/encode helpers as module-level functions** (like `dht.decode`)
   are trivial to unit-test without any hardware. See the fake-firmware tests in
@@ -92,7 +92,7 @@ Register your class under a short name and the bridge gives you a factory with
 the connection already bound:
 
 ```python
-from espbridge import register_driver
+from esplink import register_driver
 
 register_driver("mytemp", MyTempSensor)
 
@@ -112,20 +112,20 @@ This is the same mechanism the built-in drivers use — `esp.dht(4)` is just
 ## 3. Ship a pip package (plugin)
 
 To make your driver appear on every bridge *without anyone importing or calling
-`register_driver`*, advertise an **entry point** in the `espbridge.drivers`
+`register_driver`*, advertise an **entry point** in the `esplink.drivers`
 group from your package's `pyproject.toml`:
 
 ```toml
-# pyproject.toml of your package, e.g. "espbridge-mytemp"
+# pyproject.toml of your package, e.g. "esplink-mytemp"
 [project]
-name = "espbridge-mytemp"
-dependencies = ["python-esp-bridge"]
+name = "esplink-mytemp"
+dependencies = ["esplink"]
 
-[project.entry-points."espbridge.drivers"]
-mytemp = "espbridge_mytemp:MyTempSensor"
+[project.entry-points."esplink.drivers"]
+mytemp = "esplink_mytemp:MyTempSensor"
 ```
 
-Now anyone who `pip install espbridge-mytemp` gets:
+Now anyone who `pip install esplink-mytemp` gets:
 
 ```python
 with Bridge() as esp:
@@ -140,25 +140,25 @@ name.
 ## Contributing back to the repo
 
 Small, broadly useful drivers are welcome right in the
-[`espbridge/drivers/`](../python/espbridge/drivers/) package — that's where
+[`esplink/drivers/`](../python/esplink/drivers/) package — that's where
 *every* driver lives, the bundled ones and yours alike. See the folder's
-[`README.md`](../python/espbridge/drivers/README.md) for the checklist (drop a
+[`README.md`](../python/esplink/drivers/README.md) for the checklist (drop a
 module in, add one line to `_BUNDLED` in
-[`drivers/__init__.py`](../python/espbridge/drivers/__init__.py), add a test,
-document it). [`pcf8574.py`](../python/espbridge/drivers/pcf8574.py) is a
+[`drivers/__init__.py`](../python/esplink/drivers/__init__.py), add a test,
+document it). [`pcf8574.py`](../python/esplink/drivers/pcf8574.py) is a
 minimal, commented example to copy.
 
 ## Already have a driver from another ecosystem?
 
-You often don't need to write anything. python-esp-bridge speaks the wire
+You often don't need to write anything. esplink speaks the wire
 protocols of the popular Python hardware libraries, so existing drivers run
 unchanged with the ESP32's pins standing in for the Pi's — see the
 **compat** shims in the [main README](../README.md#use-the-libraries-you-already-know):
 
 - **Adafruit CircuitPython** (hundreds of sensors/displays) via
-  `espbridge.compat.blinka` (`I2C`, `SPI`, `DigitalInOut`).
-- **luma.oled / luma.lcd** displays via `espbridge.compat.luma`.
-- **gpiozero** via the `EspBridgeFactory` pin factory.
+  `esplink.compat.blinka` (`I2C`, `SPI`, `DigitalInOut`).
+- **luma.oled / luma.lcd** displays via `esplink.compat.luma`.
+- **gpiozero** via the `EspLinkFactory` pin factory.
 - **smbus2** and **RPi.GPIO** drop-in shims.
 
 Write a native driver when you want tight control or a clean API; reach for a
@@ -167,10 +167,10 @@ compat shim when a battle-tested driver already exists.
 ## Listing what's available
 
 ```bash
-espbridge drivers          # bundled drivers + installed plugins
+esplink drivers          # bundled drivers + installed plugins
 ```
 
 ```python
-import espbridge
-espbridge.driver_names()   # ['dht', 'ds18b20', 'hcsr04', 'mytemp', 'oled', ...]
+import esplink
+esplink.driver_names()   # ['dht', 'ds18b20', 'hcsr04', 'mytemp', 'oled', ...]
 ```

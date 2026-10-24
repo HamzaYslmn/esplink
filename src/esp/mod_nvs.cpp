@@ -1,8 +1,8 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // NVS: persistent key/value storage in the "user" namespace (separate from the bridge's own namespace).
 // Values are stored as raw bytes; the host is responsible for encoding/decoding typed data.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #if BRIDGE_HAS_NVS
 

@@ -1,9 +1,9 @@
 """Wireless-link password auth (SYS_AUTH / ST_DENIED)."""
 import pytest
 
-from espbridge import AuthError, Bridge
-from espbridge import constants as C
-from espbridge.protocol import FrameSplitter, decode_frame, encode_frame
+from esplink import AuthError, Bridge
+from esplink import constants as C
+from esplink.protocol import FrameSplitter, decode_frame, encode_frame
 
 from fake_firmware import FakeFirmware
 
@@ -22,10 +22,10 @@ def _drain_frames(fw):
 
 
 def test_ble_auth_ok():
-    fw = FakeFirmware(password="espbridge", mac="c049efd03fe0")
+    fw = FakeFirmware(password="esplink", mac="c049efd03fe0")
     # boot() is intentionally skipped here: on a real BLE link the READY banner
     # is only sent after the host authenticates successfully, not at startup.
-    with Bridge(transport=fw.transport, password="espbridge",
+    with Bridge(transport=fw.transport, password="esplink",
                 reset_on_open=False) as esp:
         assert esp.info is not None
         assert esp.info.mac == "c0:49:ef:d0:3f:e0"
@@ -33,7 +33,7 @@ def test_ble_auth_ok():
 
 
 def test_ble_wrong_password():
-    fw = FakeFirmware(password="espbridge")
+    fw = FakeFirmware(password="esplink")
     with pytest.raises(AuthError):
         Bridge(transport=fw.transport, password="wrong", reset_on_open=False)
     assert fw.transport.closed
@@ -46,7 +46,7 @@ def test_ble_default_password_used_when_omitted():
 
 
 def test_commands_denied_before_auth():
-    fw = FakeFirmware(password="espbridge")
+    fw = FakeFirmware(password="esplink")
     # Bypass the Bridge class and write a raw GPIO request directly, before
     # any SYS_AUTH exchange, to verify the firmware rejects it.
     fw._on_host_bytes(encode_frame(0, 1, C.GPIO_READ, bytes([2])))
@@ -67,8 +67,8 @@ def test_usb_path_needs_no_password():
 
 
 def test_ble_skips_baud_upgrade():
-    fw = FakeFirmware(password="espbridge")
-    with Bridge(transport=fw.transport, password="espbridge",
+    fw = FakeFirmware(password="esplink")
+    with Bridge(transport=fw.transport, password="esplink",
                 reset_on_open=False, upgrade_baud=True):
         pass
     assert fw.baud_requests == []  # BLE transport sets has_baud=False, so the baud-upgrade handshake is skipped

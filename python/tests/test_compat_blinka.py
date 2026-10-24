@@ -1,5 +1,5 @@
 """CircuitPython/Blinka shims: busio-style I2C/SPI + digitalio DigitalInOut."""
-from espbridge.compat.blinka import I2C, SPI, DigitalInOut, Direction, Pull
+from esplink.compat.blinka import I2C, SPI, DigitalInOut, Direction, Pull
 
 
 def test_i2c_protocol(bridge, fw):

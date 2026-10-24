@@ -5,8 +5,8 @@
 // and wifi_init() are no-ops. The real nRF52 handlers (SYS/GPIO/ADC/PWM/I2C)
 // and the BLE link live in their own files.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 // Implemented in their own nRF files: SYS, GPIO, ADC, PWM, I2C, SPI, UART,
 // 1-Wire, NVS, FS, BLE link. The rest have no nRF52 hardware → stub here.

@@ -1,9 +1,9 @@
 """RMT sub-API: symbol packing, TX/RX plumbing, trigger forwarding."""
 import pytest
 
-from espbridge import constants as C
-from espbridge.errors import UnsupportedError
-from espbridge.rmt import pack_symbols, unpack_symbols
+from esplink import constants as C
+from esplink.errors import UnsupportedError
+from esplink.rmt import pack_symbols, unpack_symbols
 
 import fake_firmware
 
@@ -28,7 +28,7 @@ def test_tx_records_symbols(bridge, fw):
 
 
 def test_tx_requires_init(bridge):
-    from espbridge.errors import RemoteError
+    from esplink.errors import RemoteError
     with pytest.raises(RemoteError):
         bridge.rmt.tx(9, [(1, 1)])
 
@@ -63,7 +63,7 @@ def test_carrier(bridge, fw):
 
 
 def test_cap_absent_raises(monkeypatch):
-    from espbridge.bridge import Bridge
+    from esplink.bridge import Bridge
     monkeypatch.setattr(fake_firmware, "CAPS",
                         fake_firmware.CAPS & ~C.Cap.RMT)
     f = fake_firmware.FakeFirmware()

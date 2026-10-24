@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import struct
 
-from espbridge import constants as C
-from espbridge.protocol import FrameSplitter, decode_frame, encode_frame
-from espbridge.transports import MockTransport
+from esplink import constants as C
+from esplink.protocol import FrameSplitter, decode_frame, encode_frame
+from esplink.transports import MockTransport
 
 CAPS = (C.Cap.WIFI | C.Cap.BLE | C.Cap.BLE_FW | C.Cap.DAC | C.Cap.TOUCH | C.Cap.ESPNOW
         | C.Cap.RMT | C.Cap.ONEWIRE | C.Cap.TWAI | C.Cap.I2S | C.Cap.FS | C.Cap.NVS
@@ -42,8 +42,7 @@ class FakeFirmware:
         self.watching: dict[int, tuple[int, int]] = {}
 
         self.watches: dict[int, dict] = {}  # id -> watch rule (WATCH_ADD)
-        self.watch_supported = True         # set False to simulate pre-0.5.0 firmware
-        self.watch_add2_supported = True    # set False to simulate pre-0.16.0 firmware
+        self.watch_full = False             # set True to make WATCH_ADD2 reply NO_MEM
 
         self.wifi_connected = False
         self.wifi_ssid: str | None = None
@@ -97,7 +96,6 @@ class FakeFirmware:
         self.ble_central = True  # set False to model a USB session (LINK_POWER -> NOT_INIT)
         self.link_power_mode: int | None = None
         self.radio_off = False              # SYS_RADIO_OFF was accepted
-        self.radio_off_supported = True     # set False to simulate pre-0.16.0 firmware
 
         self.ota_size: int | None = None
         self.ota_data = bytearray()
@@ -142,7 +140,7 @@ class FakeFirmware:
     def _info(self) -> bytes:
         # ... | gpio_count u8 | flash_mb u8 | name[] (rest of the payload)
         return (
-            bytes([self.proto_version, 0, 3, 0, C.ChipModel.ESP32, 3])
+            bytes([self.proto_version, 1, 0, 1, C.ChipModel.ESP32, 3])
             + bytes.fromhex(self.mac)
             + struct.pack(">I", int(CAPS))
             + bytes([40, 4])
@@ -194,8 +192,8 @@ class FakeFirmware:
         elif cmd == C.SYS_SET_BAUD:
             self.baud_requests.append(struct.unpack(">I", p)[0])
             self._reply(seq, cmd)
-        elif cmd == C.SYS_FREE_HEAP:  # firmware >= 0.3.2 added a 5th u32 for link-layer RX drop count
-            self._reply(seq, cmd, struct.pack(">5I", 200_000, 150_000, 100_000, 0, 0))
+        elif cmd == C.SYS_FREE_HEAP:
+            self._reply(seq, cmd, struct.pack(">6I", 200_000, 150_000, 100_000, 0, 0, 0))
         elif cmd == C.SYS_SET_NAME:
             if len(p) > C.BRIDGE_NAME_MAX:
                 self._reply_err(seq, cmd, C.Status.BAD_ARGS)
@@ -505,9 +503,7 @@ class FakeFirmware:
                 self.link_power_mode = p[0]
                 self._reply(seq, cmd)
         elif cmd == C.SYS_RADIO_OFF:
-            if not self.radio_off_supported:
-                self._reply_err(seq, cmd, C.Status.UNKNOWN_CMD)
-            elif self.ble_central or self.wifi_connected:
+            if self.ble_central or self.wifi_connected:
                 self._reply_err(seq, cmd, C.Status.BUSY)
             else:
                 self.radio_off = True
@@ -704,8 +700,8 @@ class FakeFirmware:
 
         # ---- WATCH (polled event engine) ----
         elif cmd in (C.WATCH_ADD, C.WATCH_ADD2):
-            if not self.watch_supported or (cmd == C.WATCH_ADD2 and not self.watch_add2_supported):
-                self._reply_err(seq, cmd, C.Status.UNKNOWN_CMD)
+            if self.watch_full:
+                self._reply_err(seq, cmd, C.Status.NO_MEM)
                 return
             wid, src, arg, aux, cmpv, flags, period, a, b = struct.unpack_from(">BBBBBBHii", p)
             rule = dict(source=src, arg=arg, aux=aux, cmp=cmpv,

@@ -4,7 +4,7 @@ ESP32, or to reach devices on the ESP32's Wi-Fi segment.
 """
 import sys
 
-from espbridge import Bridge
+from esplink import Bridge
 
 SSID = sys.argv[1] if len(sys.argv) > 1 else "your-ssid"
 PASSWORD = sys.argv[2] if len(sys.argv) > 2 else "your-password"

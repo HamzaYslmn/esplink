@@ -6,9 +6,9 @@
 // Command handlers run on slow_task. Bluedroid internal callbacks (scan results,
 // GATT writes, connect/disconnect) run on BT stack tasks. Both paths only
 // enqueue data via proto_send_event — tx_task is the sole serial writer.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
 
 #if BRIDGE_BLE
 

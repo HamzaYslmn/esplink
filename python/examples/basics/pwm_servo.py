@@ -1,7 +1,7 @@
 """PWM: LED fade on GPIO 16, hobby servo sweep on GPIO 13, buzzer on GPIO 27."""
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 LED = 16
 SERVO = 13

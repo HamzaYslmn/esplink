@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // PWM via LEDC (arduino-esp32 3.x pin-based API).
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 void pwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   uint16_t cmd = CMD(MOD_PWM, op);

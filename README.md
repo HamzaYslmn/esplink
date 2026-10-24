@@ -1,4 +1,4 @@
-# python-esp-bridge
+# esplink
 
 [Türkçe README](docs/README-TR.md)
 
@@ -19,7 +19,7 @@ are implemented in Python where they are easy to read, test and extend.
 ┌────────────────┐  USB serial (≤2 Mbaud) or BLE    ┌─────────────────────┐
 │ Pi / PC        │ ───────────────────────────────► │ ESP32 (bridge fw)   │
 │ Python:        │   binary protocol, COBS+CRC16    │ FreeRTOS tasks:     │
-│  espbridge     │ ◄─────────────────────────────── │  tx / rx / network  │
+│  esplink     │ ◄─────────────────────────────── │  tx / rx / network  │
 └────────────────┘        replies + async events    └─────────────────────┘
 ```
 
@@ -34,29 +34,29 @@ are implemented in Python where they are easy to read, test and extend.
    one, it writes a *Huge APP* image with esptool):
 
    ```sh
-   uvx --from "python-esp-bridge[flash]" flash   # zero-install via uv
+   uvx --from "esplink[flash]" flash   # zero-install via uv
    ```
 
-   Prefer building it yourself? Install the **`python esp bridge`** library
-   (Arduino IDE Library Manager), open *File → Examples → python esp bridge →
+   Prefer building it yourself? Install the **`esplink`** library
+   (Arduino IDE Library Manager), open *File → Examples → esplink →
    Bridge*, pick partition scheme *Huge APP*, hit Upload. The whole sketch is
-   three lines: `EspBridge.usb.begin(); EspBridge.ble.begin(); EspBridge.run();`
+   three lines: `EspLink.usb.begin(); EspLink.ble.begin(); EspLink.run();`
    Details: [`docs/FIRMWARE.md`](docs/FIRMWARE.md).
 2. **Install the Python library** on the Pi/PC — with pip:
 
    ```sh
-   pip install python-esp-bridge            # USB + Bluetooth, both included
-   pip install "python-esp-bridge[oled]"    # + Pillow, for OLED displays
-   pip install "python-esp-bridge[mcp]"     # + the MCP server (espbridge-mcp)
-   pip install "python-esp-bridge[flash]"   # + esptool, for `espbridge flash`
+   pip install esplink            # USB + Bluetooth, both included
+   pip install "esplink[oled]"    # + Pillow, for OLED displays
+   pip install "esplink[mcp]"     # + the MCP server (esplink-mcp)
+   pip install "esplink[flash]"   # + esptool, for `esplink flash`
    ```
 
    ...or with [uv](https://docs.astral.sh/uv/):
 
    ```sh
-   uv add python-esp-bridge                 # into a uv project (USB + Bluetooth)
-   uv add "python-esp-bridge[oled]"         # with an extra (oled / mcp / all)
-   uv pip install python-esp-bridge         # ...or into the active environment
+   uv add esplink                 # into a uv project (USB + Bluetooth)
+   uv add "esplink[oled]"         # with an extra (oled / mcp / all)
+   uv pip install esplink         # ...or into the active environment
    ```
 
    Bluetooth works out of the box (no extra); the old `[ble]` extra is kept as
@@ -65,7 +65,7 @@ are implemented in Python where they are easy to read, test and extend.
 3. **Go:**
 
    ```python
-   from espbridge import Bridge
+   from esplink import Bridge
 
    with Bridge() as esp:                      # USB first, then Bluetooth, then Wi-Fi
        print(esp.info)                        # chip, MAC, capabilities
@@ -84,12 +84,12 @@ are implemented in Python where they are easy to read, test and extend.
        status, body = esp.net.http_get("http://example.com/")  # ...as your modem
    ```
 
-   Or with **no USB cable at all** — boards advertise as `espbridge_<name>` and
-   require a password (default `espbridge`, change it via
-   `EspBridge.ble.begin("yourpassword")` in the sketch):
+   Or with **no USB cable at all** — boards advertise as `esplink_<name>` and
+   require a password (default `esplink`, change it via
+   `EspLink.ble.begin("yourpassword")` in the sketch):
 
    ```python
-   with Bridge(ble=True, password="espbridge") as esp:   # over Bluetooth
+   with Bridge(ble=True, password="esplink") as esp:   # over Bluetooth
        esp.gpio.write(2, 1)
    ```
 
@@ -101,9 +101,9 @@ are implemented in Python where they are easy to read, test and extend.
    `Bridge("relays")` picks one specific board over any of them, `port="COM7"`
    one specific serial port.
 
-   `espbridge` on the command line prints connection info; `espbridge ports`
-   lists candidate serial ports; `espbridge scan` probes every attached board
-   and `espbridge scan --ble` finds bridges advertising over Bluetooth.
+   `esplink` on the command line prints connection info; `esplink ports`
+   lists candidate serial ports; `esplink scan` probes every attached board
+   and `esplink scan --ble` finds bridges advertising over Bluetooth.
 
 ## Features
 
@@ -139,12 +139,12 @@ are implemented in Python where they are easy to read, test and extend.
 firmware changes to add your own):
 
 ```python
-from espbridge.drivers.neopixel import NeoPixel   # WS2812/SK6812 strips
-from espbridge.drivers.dht import DHT             # DHT11/DHT22 temp+humidity
-from espbridge.drivers.ds18b20 import DS18B20     # 1-Wire thermometers (multi-drop)
-from espbridge.drivers.hcsr04 import HCSR04       # ultrasonic ranging
-from espbridge.drivers.ir import IrSender, IrReceiver  # NEC remotes + raw IR
-from espbridge.drivers.stepper import Stepper     # A4988/DRV8825 with ramps
+from esplink.drivers.neopixel import NeoPixel   # WS2812/SK6812 strips
+from esplink.drivers.dht import DHT             # DHT11/DHT22 temp+humidity
+from esplink.drivers.ds18b20 import DS18B20     # 1-Wire thermometers (multi-drop)
+from esplink.drivers.hcsr04 import HCSR04       # ultrasonic ranging
+from esplink.drivers.ir import IrSender, IrReceiver  # NEC remotes + raw IR
+from esplink.drivers.stepper import Stepper     # A4988/DRV8825 with ramps
 
 NeoPixel(esp, pin=5, n=30).fill((0, 0, 64))
 print(DHT(esp, 4).read())                 # (23.1, 65.5)
@@ -154,9 +154,9 @@ Stepper(esp, step_pin=12, dir_pin=14).move(400, speed=800, accel=1600)
 ### Bring your own driver
 
 Those are **reference implementations, not the limit.** Every bundled driver
-lives in [`espbridge/drivers/`](python/espbridge/drivers/), and a driver is just
+lives in [`esplink/drivers/`](python/esplink/drivers/), and a driver is just
 a Python class whose constructor takes the bridge and talks to a device over the
-primitives above — [`drivers/dht.py`](python/espbridge/drivers/dht.py) is 75
+primitives above — [`drivers/dht.py`](python/esplink/drivers/dht.py) is 75
 lines. So any sensor, display or protocol is a host-side class away, with **no
 firmware change**:
 
@@ -175,13 +175,13 @@ Register a name for the `esp.<name>(...)` sugar, or ship a pip package that
 others install and your driver shows up on every bridge automatically:
 
 ```python
-from espbridge import register_driver
+from esplink import register_driver
 register_driver("mytemp", MyTempSensor)
 esp.mytemp(address=0x48).read_c()             # == MyTempSensor(esp, address=0x48)
 ```
 
-`espbridge drivers` lists everything available (the bundled
-[`drivers/`](python/espbridge/drivers/) and any installed plugins). Full guide:
+`esplink drivers` lists everything available (the bundled
+[`drivers/`](python/esplink/drivers/) and any installed plugins). Full guide:
 [**`docs/DRIVERS.md`**](docs/DRIVERS.md). And if a driver already exists in the
 Adafruit / luma / gpiozero / smbus2 ecosystems, it runs unchanged through the
 [compat shims](#use-the-libraries-you-already-know) — no rewrite needed.
@@ -204,24 +204,24 @@ For easy integration, don't pass a `Bridge` around — call `connect()` anywhere
 and get the same shared, auto-reconnecting link:
 
 ```python
-import espbridge
+import esplink
 
-esp = espbridge.connect(ble=False)      # same live link from any thread/module
+esp = esplink.connect(ble=False)      # same live link from any thread/module
 esp.gpio.write(2, 1)                     # safe to call concurrently
 
 # e.g. a FastAPI/Flask route — every request shares the one connection:
 @app.get("/adc/{pin}")
 def read(pin: int):
-    return {"mV": espbridge.connect(ble=False).adc.read_mv(pin)}
+    return {"mV": esplink.connect(ble=False).adc.read_mv(pin)}
 ```
 
 For `await`, wrap any bridge — fan out concurrent I/O with `asyncio.gather`
 ([`async_fanout.py`](python/examples/basics/async_fanout.py)):
 
 ```python
-from espbridge import AsyncBridge
+from esplink import AsyncBridge
 
-async with AsyncBridge(ble=False) as esp:        # or AsyncBridge.wrap(espbridge.connect())
+async with AsyncBridge(ble=False) as esp:        # or AsyncBridge.wrap(esplink.connect())
     t, h = await asyncio.gather(esp.adc.read(34), esp.adc.read(35))
 ```
 
@@ -231,7 +231,7 @@ it. See [`shared_connection.py`](python/examples/basics/shared_connection.py).
 
 ## Use the libraries you already know
 
-espbridge speaks the wire protocols of the popular Python hardware ecosystems,
+esplink speaks the wire protocols of the popular Python hardware ecosystems,
 so existing code, drivers and tutorials run unchanged — the ESP32's pins just
 take the place of the Pi's:
 
@@ -239,9 +239,9 @@ take the place of the Pi's:
 
 ```python
 from gpiozero import LED, Button
-from espbridge.compat.gpiozero import EspBridgeFactory
+from esplink.compat.gpiozero import EspLinkFactory
 
-factory = EspBridgeFactory(esp)
+factory = EspLinkFactory(esp)
 led, btn = LED(2, pin_factory=factory), Button(4, pin_factory=factory)
 btn.when_pressed = led.toggle
 ```
@@ -250,7 +250,7 @@ btn.when_pressed = led.toggle
 
 ```python
 from adafruit_bme280.basic import Adafruit_BME280_I2C
-from espbridge.compat.blinka import I2C
+from esplink.compat.blinka import I2C
 
 bme = Adafruit_BME280_I2C(I2C(esp))     # the driver doesn't know it's bridged
 print(bme.temperature)
@@ -259,21 +259,21 @@ print(bme.temperature)
 **smbus2** — classic Pi I2C code, unchanged:
 
 ```python
-from espbridge.compat.smbus import SMBus
+from esplink.compat.smbus import SMBus
 bus = SMBus(esp)                        # instead of smbus2.SMBus(1)
 temp = bus.read_byte_data(0x48, 0x00)
 ```
 
 **luma.oled / luma.lcd** — I2C and SPI display interfaces (`LumaI2C`, `LumaSPI`),
-**RPi.GPIO** — `espbridge.compat.rpi_gpio` shim, and the native objects follow
+**RPi.GPIO** — `esplink.compat.rpi_gpio` shim, and the native objects follow
 stdlib conventions too: UART ports are pyserial-like (`in_waiting`, `readline`),
 bridged TCP/UDP sockets support `settimeout`/`recv`/`sendall`.
 
 I2C OLEDs (SSD1306 / SH1106 / the ubiquitous clones) are supported directly —
-`pip install "python-esp-bridge[oled]"`, draw with PIL:
+`pip install "esplink[oled]"`, draw with PIL:
 
 ```python
-from espbridge.drivers.oled import OLED
+from esplink.drivers.oled import OLED
 
 oled = OLED(esp)                # bus init + auto-detect + clone-safe power-up
 with oled.draw() as d:          # d is a PIL ImageDraw
@@ -291,34 +291,34 @@ language.
 Install the server once, then plug in the board — the port auto-detects:
 
 ```bash
-uv tool install "python-esp-bridge[mcp]"     # or: pip install "python-esp-bridge[mcp]"
+uv tool install "esplink[mcp]"     # or: pip install "esplink[mcp]"
 ```
 
 Works with **Claude Code, Gemini CLI, Codex CLI, Antigravity, Cursor/Windsurf
-and Ollama** — all launch the same `espbridge-mcp` command. This repo ships
+and Ollama** — all launch the same `esplink-mcp` command. This repo ships
 ready configs for Claude Code (`.mcp.json`) and Gemini CLI
 (`.gemini/settings.json`): just open the assistant in the repo. Every other
 client uses the same one-line config (key `mcpServers`):
 
 ```jsonc
 { "mcpServers": {
-    "espbridge": { "command": "espbridge-mcp", "args": [] }
+    "esplink": { "command": "esplink-mcp", "args": [] }
 } }
 ```
 
 Tools are grouped by peripheral (`gpio_*`, `i2c_*`, `wifi_*`, …); raw byte
 payloads go in and out as hex strings. Embed it in your own server with
-`from espbridge.mcp import build_server`. **Per-assistant setup (incl. Codex,
+`from esplink.mcp import build_server`. **Per-assistant setup (incl. Codex,
 Antigravity, Ollama): [`docs/MCP.md`](docs/MCP.md).**
 
 ### Multiple ESP32s
 
-Name each board once (`espbridge -p COM7 set-name relays` — stored in its flash,
+Name each board once (`esplink -p COM7 set-name relays` — stored in its flash,
 survives reboots and port renumbering), then never think about ports or MACs
 again:
 
 ```python
-from espbridge import Bridge
+from esplink import Bridge
 
 esp = Bridge()                            # one board  -> whichever answers
 esp = Bridge("relays")                    # one name   -> that one board
@@ -341,7 +341,7 @@ halves travel in the Bluetooth advertisement, the Wi-Fi discovery reply and
 keywords, so nothing is guessed from the shape of the string.
 
 Names are capped at 16 characters, which is what keeps the advertised
-`espbridge_<name>` inside the 26 the Bluetooth scan response fits — a name that
+`esplink_<name>` inside the 26 the Bluetooth scan response fits — a name that
 would be cut short over the air is refused instead. Asking for boards that
 aren't all there is an error, not a partial run.
 
@@ -370,7 +370,7 @@ One extra call covers every scale: `Bridge.all()` opens all of them, and a list
 opens exactly the ones you name — over USB, or over Wi-Fi with `wifi=True`:
 
 ```python
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge.all(wifi=True) as boards:
     boards.wait_for(800, timeout=120)                  # they keep arriving
@@ -415,7 +415,7 @@ esp.free_heap()                 # heap + dropped-frame counters from the firmwar
 ```
 
 ```bash
-ESPBRIDGE_DEBUG=1 python app.py   # trace every request/response with names
+ESPLINK_DEBUG=1 python app.py   # trace every request/response with names
 ```
 
 Lost frames on a busy link are also *prevented* now: pipelined bursts
@@ -429,10 +429,10 @@ Library Manager); the Python package lives under `python/`.
 
 | path | what |
 |------|------|
-| [`src/`](src/) + [`examples/Bridge/`](examples/Bridge/) | Arduino library — the flash-once firmware (C/C++) + its example sketch (`EspBridge.usb/ble/wifi.begin()`) |
+| [`src/`](src/) + [`examples/Bridge/`](examples/Bridge/) | Arduino library — the flash-once firmware (C/C++) + its example sketch (`EspLink.usb/ble/wifi.begin()`) |
 | `library.properties`, `keywords.txt` | Arduino Library Manager metadata (at the repo root, as the registry requires) |
-| [`python/`](python/) | Python package `python-esp-bridge` (import `espbridge`) with its own `tests/` and grouped `examples/` (`basics/`, `devices/`, `system/`, `wireless/`, `network/`, `displays/`, `compat/`) |
-| [`docs/MCP.md`](docs/MCP.md) | MCP server (`espbridge-mcp`): drive the bridge from an AI agent |
+| [`python/`](python/) | Python package `esplink` (import `esplink`) with its own `tests/` and grouped `examples/` (`basics/`, `devices/`, `system/`, `wireless/`, `network/`, `displays/`, `compat/`) |
+| [`docs/MCP.md`](docs/MCP.md) | MCP server (`esplink-mcp`): drive the bridge from an AI agent |
 | [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | binary wire protocol spec (framing, transports, auth) |
 | [`docs/FIRMWARE.md`](docs/FIRMWARE.md) | firmware flashing, partition scheme & build-flag reference |
 
@@ -444,7 +444,7 @@ ESP-NOW works everywhere; no DAC on S3/C3/C6/H2). Capabilities are reported by t
 firmware at connect time, so the Python API fails fast with a clear error for
 anything your chip lacks.
 
-Tested with **arduino-esp32 core 3.3.6** on classic ESP32 (CP2102), flashed
+Tested with **arduino-esp32 core 3.3.12** on classic ESP32 (CP2102), flashed
 with the **Minimal SPIFFS** partition scheme (1.9 MB app + OTA — the firmware
 is ~95% of that slot; `Huge APP` also works if you don't need OTA). Verified:
 USB at 1.5 Mbaud, the BLE link, ESP-NOW, and Wi-Fi/BLE/ESP-NOW coexistence —

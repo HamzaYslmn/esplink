@@ -1,17 +1,17 @@
 [project]
-name = "espbridge-examples"
+name = "esplink-examples"
 version = "0.1.2"
-description = "Runnable examples for python-esp-bridge"
+description = "Runnable examples for esplink"
 readme = "README.md"
 requires-python = ">=3.11"                # same floor as the library itself
 dependencies = [
-    "python-esp-bridge[all]",             # oled/ble/mcp/flash — Pillow, bleak, esptool
+    "esplink[all]",             # oled/ble/mcp/flash — Pillow, bleak, esptool
     "gpiozero>=2",                        # gpiozero/
     "luma.oled>=3.12",                    # luma/
     "adafruit-circuitpython-bme280>=2",   # adafruit/ (driver imports work without the sensor)
 ]
 
 # Not on PyPI yet (and for development in general): use the package from this
-# repo, editable so changes in ../espbridge apply without reinstalling.
+# repo, editable so changes in ../esplink apply without reinstalling.
 [tool.uv.sources]
-python-esp-bridge = { path = "..", editable = true }
+esplink = { path = "..", editable = true }

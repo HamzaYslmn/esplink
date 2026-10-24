@@ -4,7 +4,7 @@ Wire a 3.3 V CAN transceiver (SN65HVD230): TX->GPIO21, RX->GPIO22.
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     esp.can.begin(tx=21, rx=22, bitrate=500_000)

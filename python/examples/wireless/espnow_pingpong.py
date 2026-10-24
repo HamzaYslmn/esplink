@@ -17,7 +17,7 @@ import logging
 import sys
 import time
 
-from espbridge import Bridge, find_ble_devices
+from esplink import Bridge, find_ble_devices
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -29,8 +29,8 @@ sel_a, sel_b = devs[0], devs[1]
 print(f"pinger:  {sel_a.ident}")
 print(f"ponger:  {sel_b.ident}")
 
-with Bridge(sel_a.ident, ble=True, password="espbridge") as a, \
-     Bridge(sel_b.ident, ble=True, password="espbridge") as b:
+with Bridge(sel_a.ident, ble=True, password="esplink") as a, \
+     Bridge(sel_b.ident, ble=True, password="esplink") as b:
     mac_a = a.espnow.begin()
     mac_b = b.espnow.begin()
     a.espnow.add_peer(mac_b)

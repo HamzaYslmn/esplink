@@ -5,7 +5,7 @@ Note: classic-ESP32 only feature (S3 has no DAC).
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 DAC_PIN = 25
 ADC_PIN = 34

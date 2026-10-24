@@ -1,4 +1,4 @@
-"""Guard: src/espbridge/commands.h and espbridge.constants must stay in sync.
+"""Guard: src/esplink/commands.h and esplink.constants must stay in sync.
 
 Both files carry a "MUST stay in sync" banner; this test enforces it. It parses
 the firmware header and asserts every command id, module id, status code,
@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from espbridge import constants as C
+from esplink import constants as C
 
-HEADER = Path(__file__).resolve().parents[2] / "src" / "espbridge" / "commands.h"
+HEADER = Path(__file__).resolve().parents[2] / "src" / "esplink" / "commands.h"
 
 # FW_VERSION_* have no constants.py mirror — they are checked against the
 # package version instead (test_version_lockstep below).
@@ -115,7 +115,7 @@ def test_version_lockstep():
     A host reads SYS_INFO and knows exactly which release the firmware came
     from — no separate compatibility table. PROTOCOL_VERSION stays the hard
     wire-compatibility gate; the release version signals feature parity."""
-    import espbridge
+    import esplink
 
     fw = (_INTS["FW_VERSION_MAJOR"], _INTS["FW_VERSION_MINOR"], _INTS["FW_VERSION_PATCH"])
     fw_str = ".".join(map(str, fw))
@@ -128,6 +128,6 @@ def test_version_lockstep():
                           (root / "python" / "pyproject.toml").read_text(encoding="utf-8"),
                           re.MULTILINE).group(1)
 
-    assert fw_str == lib == pyproject == espbridge.__version__, (
+    assert fw_str == lib == pyproject == esplink.__version__, (
         f"version drift: firmware={fw_str} library.properties={lib} "
-        f"pyproject={pyproject} __version__={espbridge.__version__}")
+        f"pyproject={pyproject} __version__={esplink.__version__}")

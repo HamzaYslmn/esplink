@@ -1,4 +1,4 @@
-"""Full hardware stress suite for python-esp-bridge.
+"""Full hardware stress suite for esplink.
 
 Two boards, identified by MAC — never by port, because port numbers hop between
 reboots and driving the wrong board's GPIO can switch a relay:
@@ -10,8 +10,8 @@ import sys
 import time
 import threading
 
-import espbridge
-from espbridge.errors import RemoteError
+import esplink
+from esplink.errors import RemoteError
 
 RELAYS_MAC = "c0:49:ef:d0:3f:e0"
 SPARE_MAC = "c0:49:ef:d4:54:44"
@@ -36,8 +36,8 @@ def run_test(it, name, fn):
 def open_by_mac(mac, role):
     """Open the board with this MAC, whatever port it landed on this boot."""
     try:
-        esp = espbridge.Bridge(mac, ble=False)
-    except espbridge.BridgeError as e:
+        esp = esplink.Bridge(mac, ble=False)
+    except esplink.BridgeError as e:
         raise SystemExit(f"no board with MAC {mac} ({role}): {e}") from None
     print(f"{role:<7} mac={esp.info.mac} "
           f"fw {'.'.join(map(str, esp.info.fw_version))}")
@@ -296,7 +296,7 @@ for it in range(1, ITERATIONS + 1):
 
     # ---- BLE dual-link phase ----------------------------------------------------------
     def t_ble():
-        ble = espbridge.Bridge(RELAYS_MAC, ble=True)
+        ble = esplink.Bridge(RELAYS_MAC, ble=True)
         try:
             t0 = time.perf_counter()
             for _ in range(10):

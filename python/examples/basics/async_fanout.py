@@ -11,7 +11,7 @@ Same API as Bridge — just `await` the calls, inside `async with`.
 import asyncio
 import time
 
-from espbridge import AsyncBridge
+from esplink import AsyncBridge
 
 LED = 2
 ADC_PINS = [34, 35, 36, 39]

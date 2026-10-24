@@ -1,11 +1,11 @@
-"""espbridge.drivers.nrf24.NRF24: nRF24L01+ radio — protocol-level (no hardware).
+"""esplink.drivers.nrf24.NRF24: nRF24L01+ radio — protocol-level (no hardware).
 
 The module isn't wired to any board, so these tests drive a fake SPI/GPIO and
 assert the SPI command bytes and CE toggling match the datasheet TX/RX flow.
 """
 import pytest
 
-from espbridge.drivers.nrf24 import NRF24
+from esplink.drivers.nrf24 import NRF24
 
 # command / register constants mirrored from the driver for readable asserts
 W_REGISTER = 0x20

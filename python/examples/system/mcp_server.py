@@ -1,20 +1,20 @@
 """Run the ESP32 bridge as an MCP server so an AI agent can drive it.
 
-Install the extra first:  pip install "python-esp-bridge[mcp]"
+Install the extra first:  pip install "esplink[mcp]"
 
-Then run this file (or just the installed `espbridge-mcp` console script):
+Then run this file (or just the installed `esplink-mcp` console script):
 
     python examples/system/mcp_server.py            # stdio, auto-detect port
     python examples/system/mcp_server.py -p COM7    # a specific port
 
 Point any MCP client at it. For Claude Code:
 
-    claude mcp add espbridge -- espbridge-mcp -p COM7
+    claude mcp add esplink -- esplink-mcp -p COM7
 
 This example also shows how to register your own extra tool on top of the 100+
 built-in peripheral tools before serving. See docs/MCP.md for the full reference.
 """
-from espbridge.mcp import BridgeManager, build_server
+from esplink.mcp import BridgeManager, build_server
 
 # Construct the manager explicitly so the custom tool below can reach the board.
 # Pass "relays" (a name or MAC) / port="COM7" / ble=True here to pin one board;

@@ -8,7 +8,7 @@ the on-device watch engine, so Python gets a callback without polling:
 """
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 PAD = 4
 

@@ -21,7 +21,7 @@ Run:  python watch_threshold.py
 """
 import time
 
-import espbridge
+import esplink
 
 ADC_PIN = 34          # analog input to monitor (ADC1 pin; input-only on classic ESP32)
 DIGITAL_PIN = 15      # digital input to monitor (any free GPIO)
@@ -36,7 +36,7 @@ def to_255(v12): return round(v12 / _FS12 * _FS8)    # 0..4095 -> 0..255
 
 def main():
     # Bluetooth push notifications. Use ble=False for the same thing over USB.
-    esp = espbridge.connect(ble=True)
+    esp = esplink.connect(ble=True)
     print(f"connected: {esp.info.ident} "
           f"(fw v{'.'.join(map(str, esp.info.fw_version))})")
 
@@ -79,7 +79,7 @@ def main():
 # --- Prefer async/await? The same rule as an async stream -----------------------
 #
 #     import asyncio
-#     from espbridge import AsyncBridge
+#     from esplink import AsyncBridge
 #
 #     async def main():
 #         async with AsyncBridge(ble=True) as esp:

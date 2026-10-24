@@ -1,4 +1,4 @@
-"""espbridge.drivers.sx126x.SX126x: command-based LoRa radio, protocol-level.
+"""esplink.drivers.sx126x.SX126x: command-based LoRa radio, protocol-level.
 
 No hardware: a FakeEsp records every SPI frame (tx bytes + CS pin) and every
 GPIO op, with BUSY always reading low (ready). Canned responses are matched by
@@ -7,7 +7,7 @@ the TX and RX flows deterministically.
 """
 import pytest
 
-from espbridge.drivers.sx126x import SX126x
+from esplink.drivers.sx126x import SX126x
 
 # opcodes mirrored from the driver for assertions
 SET_STANDBY = 0x80

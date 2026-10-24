@@ -1,0 +1,2 @@
+# arduino-cli project file: `arduino-cli compile examples/Bridge_nRF52` needs no --fqbn.
+default_fqbn: adafruit:nrf52:feather52840

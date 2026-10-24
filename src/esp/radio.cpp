@@ -1,8 +1,8 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // Shared Wi-Fi radio ownership — see radio.h.
-#include "espbridge/radio.h"
-#include "espbridge/config.h"
-#include "espbridge/link.h"
+#include "esplink/radio.h"
+#include "esplink/config.h"
+#include "esplink/link.h"
 #include <WiFi.h>
 
 static uint8_t users = 0;  // RADIO_* bits of everyone holding the radio up

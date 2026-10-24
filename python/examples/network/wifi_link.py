@@ -13,8 +13,8 @@ import statistics
 import sys
 import time
 
-import espbridge
-from espbridge import Bridge
+import esplink
+from esplink import Bridge
 
 port = sys.argv[1] if len(sys.argv) > 1 else None
 ssid = sys.argv[2] if len(sys.argv) > 2 else None
@@ -37,7 +37,7 @@ print("\nlooking for bridges on the LAN ...")
 # Retried: a board that just joined has an IP a second or two before it answers
 # the discovery broadcast, so provisioning and finding it in one run would race.
 for _ in range(10):
-    found = espbridge.find_wifi_devices()
+    found = esplink.find_wifi_devices()
     if found:
         break
     time.sleep(1)

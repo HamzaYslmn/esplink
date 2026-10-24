@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from espbridge import constants as C
+from esplink import constants as C
 
 
 def test_ack_releases_only_its_own_bytes(bridge):

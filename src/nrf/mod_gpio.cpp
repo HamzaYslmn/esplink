@@ -2,8 +2,8 @@
 // implemented on this build and replies ST_UNSUPPORTED. Counterpart to
 // src/esp/mod_gpio.cpp.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #ifdef PINS_COUNT
   #define BRIDGE_PIN_COUNT PINS_COUNT

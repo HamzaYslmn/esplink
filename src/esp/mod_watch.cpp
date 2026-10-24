@@ -3,9 +3,9 @@
 // ("sample ADC pin 4 every 50 ms; fire above 3200"); watch_poll() samples each on
 // slow_task and emits WATCH_EVT only on state change. Polled (never in an ISR, so
 // the main loop is never interrupted) and single-task (no mutex on the rule table).
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/radio.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/radio.h"
 #include <esp32-hal-adc.h>
 #include <esp32-hal-gpio.h>
 #include <esp32-hal-ledc.h>

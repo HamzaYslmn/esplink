@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build the prebuilt firmware image that `espbridge flash` ships and writes.
+"""Build the prebuilt firmware image that `esplink flash` ships and writes.
 
 Compiles examples/Bridge with the **Huge APP** partition scheme (3 MB app, no
 OTA — the documented default for end users, biggest app, always reflash over
 USB) and copies the merged image into the package at
-``python/espbridge/firmware/`` so it gets bundled into the wheel.
+``python/esplink/firmware/`` so it gets bundled into the wheel.
 
     python tools/build_firmware.py            # build with arduino-cli on PATH
     python tools/build_firmware.py --fqbn esp32:esp32:esp32
@@ -28,7 +28,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKETCH = REPO_ROOT / "examples" / "Bridge"
-DEST_DIR = REPO_ROOT / "python" / "espbridge" / "firmware"
+DEST_DIR = REPO_ROOT / "python" / "esplink" / "firmware"
 DEST_NAME = "bridge.esp32.huge_app.bin"
 # Isolated --build-path so the Huge APP build gets its own sketch build dir and
 # never evicts the warm min_spiffs dev cache (the scheme is part of the FQBN, so

@@ -1,7 +1,7 @@
-"""espbridge.drivers.motor.Motor: generic H-bridge DC-motor driver."""
+"""esplink.drivers.motor.Motor: generic H-bridge DC-motor driver."""
 import pytest
 
-from espbridge.drivers.motor import Motor
+from esplink.drivers.motor import Motor
 
 
 class FakeGpio:

@@ -2,7 +2,7 @@
 and save a playable WAV on the host."""
 import wave
 
-from espbridge import Bridge
+from esplink import Bridge
 
 RATE = 16_000
 

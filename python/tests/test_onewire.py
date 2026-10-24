@@ -1,5 +1,5 @@
 """1-Wire: CRC8, ROM search against the fake multi-device bus."""
-from espbridge.onewire import crc8
+from esplink.onewire import crc8
 
 
 def rom(family: int, serial: int) -> bytes:

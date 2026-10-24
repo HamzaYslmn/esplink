@@ -1,7 +1,7 @@
-"""espbridge.drivers.bh1750.BH1750: light sensor command bytes + lux decode."""
+"""esplink.drivers.bh1750.BH1750: light sensor command bytes + lux decode."""
 import pytest
 
-from espbridge.drivers.bh1750 import (
+from esplink.drivers.bh1750 import (
     BH1750, POWER_ON, CONT_HIRES, CONT_HIRES2, CONT_LORES,
 )
 

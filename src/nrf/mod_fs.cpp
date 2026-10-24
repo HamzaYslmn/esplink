@@ -4,8 +4,8 @@
 // so a second OPEN before CLOSE replies ST_BUSY. No mtime is tracked (STAT
 // reports 0). MOUNT/DF report 0/0 — the wrapper exposes no usage query.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <InternalFileSystem.h>
 
 using namespace Adafruit_LittleFS_Namespace;

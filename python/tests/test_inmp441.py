@@ -1,7 +1,7 @@
-"""espbridge.drivers.inmp441.INMP441: 32-bit I2S capture + 16-bit downconvert."""
+"""esplink.drivers.inmp441.INMP441: 32-bit I2S capture + 16-bit downconvert."""
 import struct
 
-from espbridge.drivers.inmp441 import INMP441
+from esplink.drivers.inmp441 import INMP441
 
 
 class FakeI2s:

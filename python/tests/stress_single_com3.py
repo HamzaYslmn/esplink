@@ -5,7 +5,7 @@ No second board, so ESP-NOW/peer tests are skipped. No relay-pin writes — only
 the onboard LED (GPIO2), ADC, I2C(OLED), PWM, NVS, and heap/leak tracking.
 """
 import time
-import espbridge
+import esplink
 
 PORT = "COM3"
 LED = 2          # onboard LED — safe to drive on this board
@@ -18,7 +18,7 @@ def chk(name, ok, detail=""):
     results.append((name, ok))
     print(f"  {name:<34} {'PASS' if ok else 'FAIL':<4} {detail}")
 
-e = espbridge.Bridge(port=PORT)
+e = esplink.Bridge(port=PORT)
 print(f"{PORT}: fw {e.info.fw_version} chip {e.info.chip.name} mac {e.info.mac}")
 h0 = e.free_heap()["free"]
 print(f"start heap = {h0}\n")
@@ -78,7 +78,7 @@ time.sleep(5)  # Windows lingers the USB/BLE stack briefly after close
 # ---- BLE speed test ---------------------------------------------------------
 print("\n--- BLE speed test ---")
 try:
-    b = espbridge.Bridge(ble=True, password="espbridge")
+    b = esplink.Bridge(ble=True, password="esplink")
     print(f"BLE connected: {b.info.chip.name} mac {b.info.mac}")
     # warm up
     for _ in range(5): b.ping()

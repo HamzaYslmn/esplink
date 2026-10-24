@@ -3,8 +3,8 @@
 // begin(sda, scl, freq), and has no setBufferSize — the buffer is fixed, and
 // I2C_INIT reports its capacity so the host chunks larger transfers to fit.
 #if defined(ARDUINO_ARCH_NRF52)
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <Wire.h>
 
 #ifdef BUFFER_LENGTH

@@ -1,6 +1,6 @@
 """Any Adafruit CircuitPython driver through the bridge — BME280 shown here.
 
-The espbridge.compat.blinka shim speaks busio/digitalio's wire protocols, so
+The esplink.compat.blinka shim speaks busio/digitalio's wire protocols, so
 the hundreds of adafruit-circuitpython-* sensor/display drivers run unchanged.
 
     uv run adafruit/bme280.py
@@ -11,8 +11,8 @@ import time
 
 from adafruit_bme280.basic import Adafruit_BME280_I2C
 
-from espbridge import Bridge
-from espbridge.compat.blinka import I2C
+from esplink import Bridge
+from esplink.compat.blinka import I2C
 
 with Bridge() as esp:
     i2c = I2C(esp)                      # drop-in for busio.I2C / board.I2C()

@@ -1,7 +1,7 @@
 """Filesystem: mount, file round-trips, chunking, listing."""
 import pytest
 
-from espbridge.errors import RemoteError
+from esplink.errors import RemoteError
 
 
 def test_mount_reports_df(bridge, fw):

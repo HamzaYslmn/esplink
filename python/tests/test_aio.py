@@ -4,8 +4,8 @@ import struct
 
 import pytest
 
-from espbridge import AsyncBridge
-from espbridge import constants as C
+from esplink import AsyncBridge
+from esplink import constants as C
 
 
 def _async(fw, scenario):

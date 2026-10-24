@@ -2,8 +2,8 @@
 import colorsys
 import time
 
-from espbridge import Bridge
-from espbridge.drivers.neopixel import NeoPixel
+from esplink import Bridge
+from esplink.drivers.neopixel import NeoPixel
 
 PIN, COUNT = 5, 30
 

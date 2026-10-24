@@ -2,7 +2,7 @@
 
 Works with any SPI flash (W25Qxx etc.); adapt to your own SPI device.
 """
-from espbridge import Bridge
+from esplink import Bridge
 
 with Bridge() as esp:
     esp.spi.init(sck=18, miso=19, mosi=23, freq=1_000_000, mode=0)

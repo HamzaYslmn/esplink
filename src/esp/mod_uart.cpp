@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // Secondary UARTs (1, 2): TX from host, RX streamed back as events.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 static bool uart_inited[3];
 

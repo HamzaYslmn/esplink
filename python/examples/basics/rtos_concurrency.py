@@ -38,7 +38,7 @@ import sys
 import threading
 import time
 
-from espbridge import Bridge, BridgeError
+from esplink import Bridge, BridgeError
 
 SSID = sys.argv[1] if len(sys.argv) > 1 else ""
 PASSWORD = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -102,10 +102,10 @@ def oled_status(esp: Bridge, stop: threading.Event) -> None:
     """Live OLED redraws over I2C — also bridge_rx, so the screen keeps updating
     while the network task blocks bridge_slow. Skips cleanly if there's no panel."""
     try:
-        from espbridge.drivers.oled import OLED
+        from esplink.drivers.oled import OLED
     except ImportError:
         print("[oled] Pillow not installed "
-              "(pip install 'python-esp-bridge[oled]') — skipping")
+              "(pip install 'esplink[oled]') — skipping")
         return
     try:
         oled = OLED(esp)                 # I2C init + auto-detect + power up

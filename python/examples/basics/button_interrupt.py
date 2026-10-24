@@ -1,7 +1,7 @@
 """Edge interrupts: push-button on GPIO 4 (wired to GND, internal pull-up)."""
 import time
 
-from espbridge import Bridge
+from esplink import Bridge
 
 BUTTON = 4
 

@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // GPIO: modes, read/write, batch ops, edge interrupts -> events.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <esp_timer.h>
 
 struct EdgeRaw { uint8_t pin; uint8_t level; uint32_t ms; };

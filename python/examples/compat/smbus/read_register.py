@@ -10,8 +10,8 @@ Wiring: SDA -> GPIO21, SCL -> GPIO22.
 """
 import sys
 
-from espbridge import Bridge
-from espbridge.compat.smbus import SMBus
+from esplink import Bridge
+from esplink.compat.smbus import SMBus
 
 ADDR = int(sys.argv[1], 0) if len(sys.argv) > 1 else None
 REGISTER = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0xD0

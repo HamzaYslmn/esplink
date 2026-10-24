@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // SPI master, full-duplex transfers with optional CS handling.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 #include <SPI.h>
 
 static SPIClass spi0(BRIDGE_SPI_HOST0);

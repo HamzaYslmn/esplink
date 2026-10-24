@@ -11,11 +11,11 @@ import time
 
 import pytest
 
-from espbridge import Bridge
-from espbridge.errors import AuthError, BridgeTimeoutError
+from esplink import Bridge
+from esplink.errors import AuthError, BridgeTimeoutError
 from fake_firmware import FakeFirmware
 
-PASSWORD = "espbridge"
+PASSWORD = "esplink"
 
 
 def _pump(fw: FakeFirmware, conn: socket.socket) -> None:

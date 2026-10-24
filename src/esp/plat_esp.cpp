@@ -1,10 +1,10 @@
-// python-esp-bridge — ESP32 platform glue (heap, reset cause, link Serial,
+// esplink — ESP32 platform glue (heap, reset cause, link Serial,
 // and the IDF log redirect). Pulled out of the shared protocol core so that
 // core stays architecture-independent.
 #if defined(ARDUINO_ARCH_ESP32)
-#include "espbridge/platform.h"
-#include "espbridge/protocol.h"
-#include "espbridge/config.h"
+#include "esplink/platform.h"
+#include "esplink/protocol.h"
+#include "esplink/config.h"
 #include <esp_system.h>
 #include <esp_log.h>
 

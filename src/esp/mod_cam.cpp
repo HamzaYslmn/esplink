@@ -1,10 +1,10 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // Camera support via esp32-camera. Opt-in with BRIDGE_ENABLE_CAM; requires PSRAM (checked at INIT time).
-// Supported chips: ESP32, S2, S3. The host sends a full pin map (use presets from espbridge.camera).
+// Supported chips: ESP32, S2, S3. The host sends a full pin map (use presets from esplink.camera).
 // One frame is captured and held in PSRAM, then read back in <=2 KB chunks.
 // Produces JPEG snapshots only — not streaming video. Runs on slow_task.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #if BRIDGE_CAM
 
@@ -80,7 +80,7 @@ void cam_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (!s) { proto_reply_err(seq, cmd, ST_NOT_INIT); return; }
       int v = (int32_t)read_be32(p + 1);
       int r;
-      switch (p[0]) {  // property IDs mirror the constants defined in espbridge.camera
+      switch (p[0]) {  // property IDs mirror the constants defined in esplink.camera
         case 0:  r = s->set_framesize(s, (framesize_t)v); break;
         case 1:  r = s->set_quality(s, v); break;
         case 2:  r = s->set_brightness(s, v); break;

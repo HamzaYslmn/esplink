@@ -1,8 +1,8 @@
 """Stepper via an A4988/DRV8825 driver: STEP->GPIO12, DIR->GPIO14."""
 import time
 
-from espbridge import Bridge
-from espbridge.drivers.stepper import Stepper
+from esplink import Bridge
+from esplink.drivers.stepper import Stepper
 
 with Bridge() as esp:
     motor = Stepper(esp, step_pin=12, dir_pin=14)

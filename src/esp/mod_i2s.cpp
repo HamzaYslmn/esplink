@@ -4,8 +4,8 @@
 // link-layer jitter. Link bandwidth is the hard ceiling on sample rates:
 // ~92 KB/s at 921600 baud supports up to 16-bit 16 kHz mono.
 // Runs on slow_task.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #if BRIDGE_HAS_I2S
 

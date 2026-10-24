@@ -1,5 +1,5 @@
 """Scan Wi-Fi networks through the ESP32 radio."""
-from espbridge import Bridge
+from esplink import Bridge
 
 # ble=False: scanning powers up the Wi-Fi radio, which the classic ESP32 can't
 # do while a Bluetooth link is live — so run this one over the cable.

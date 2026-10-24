@@ -7,8 +7,8 @@
 // RMT ticks (1..0x7FFF). Two symbols pack into one rmt_data_t hardware word;
 // the unused half of an odd trailing symbol is left zero, which the RMT hardware
 // interprets as an end-of-frame marker.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #if BRIDGE_HAS_RMT
 

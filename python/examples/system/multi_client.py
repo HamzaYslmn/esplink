@@ -8,11 +8,11 @@ can't each open the same board over Bluetooth even if they try. The fix is one
 *owner* that holds the single link and serves it; any number of clients connect
 to the owner.
 
-Here the owner is the built-in espbridge MCP server over HTTP and the clients are
+Here the owner is the built-in esplink MCP server over HTTP and the clients are
 plain MCP clients -- but the shape is general: one process owns the board, others
 reach it over a local (or network) endpoint. Needs the extra:
 
-    pip install "python-esp-bridge[mcp]"
+    pip install "esplink[mcp]"
 
     uv run system/multi_client.py            # owner auto-detects the USB port
     uv run system/multi_client.py -b         # owner connects over Bluetooth
@@ -56,10 +56,10 @@ async def run_clients(n: int) -> list[str]:
 
 
 def main() -> int:
-    # Start the owner: the espbridge MCP server over HTTP. It opens the ONE board
+    # Start the owner: the esplink MCP server over HTTP. It opens the ONE board
     # link; any extra CLI args (-p COM7 / -b / -m MAC) pick the device.
     owner = subprocess.Popen(
-        [sys.executable, "-m", "espbridge.mcp", "--transport", "http",
+        [sys.executable, "-m", "esplink.mcp", "--transport", "http",
          "--host", HOST, "--port-num", str(PORT), *sys.argv[1:]],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:

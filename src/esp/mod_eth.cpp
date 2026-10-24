@@ -2,13 +2,13 @@
 // Ethernet module (opt-in: define BRIDGE_ENABLE_ETH to include it).
 // Wraps the arduino-esp32 ETH.h library. The host sends PHY parameters at
 // runtime (pin numbers, clock mode, etc.); common boards have presets in
-// the Python package under espbridge.eth.PRESETS.
+// the Python package under esplink.eth.PRESETS.
 //
 // Once the interface is up, NET module sockets route over it automatically
 // because ETHClass registers as a NetworkInterface in the arduino-esp32
 // core-3.x Network stack — no special handling needed in mod_net.cpp.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
 
 #if BRIDGE_ETH
 

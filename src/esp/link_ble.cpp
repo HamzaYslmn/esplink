@@ -1,15 +1,15 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // BLE transport link: runs the bridge protocol over a NUS-style GATT service
 // so a host can communicate with the board over Bluetooth without a USB cable.
-// See espbridge/link.h for the public API.
+// See esplink/link.h for the public API.
 //
 // RX: the host writes the RX characteristic, Bluedroid's BT task pushes the bytes
 //   into a stream buffer, and rx_task drains it through the same COBS pump the
 //   USB serial path uses.
 // TX: tx_task sends (ATT_MTU - 3)-byte chunks as GATT notifications.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/link.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/link.h"
 
 #if BRIDGE_BLE
 
@@ -126,7 +126,7 @@ class LinkRxCb : public BLECharacteristicCallbacks {
       if (now - last_warn > 1000) {
         last_warn = now;
         proto_log(2, "ble: rx overflow — frames lost (host writing faster "
-                     "than commands execute; update python-esp-bridge for "
+                     "than commands execute; update esplink for "
                      "burst throttling)");
       }
     }
@@ -187,7 +187,7 @@ void link_ble_init(const char* password) {
   rx_buf = xStreamBufferCreate(LINK_RX_BUF, 1);
   if (rx_buf == nullptr) return;
 
-  // Advertised name "espbridge_<identity>": the prefix marks the board as ours
+  // Advertised name "esplink_<identity>": the prefix marks the board as ours
   // in any BLE scanner, and the identity is its name, or its MAC while unnamed —
   // whichever one you'd pass to Bridge(). The scan response fits ~26 characters
   // and the prefix spends 10, so only one identity fits: BRIDGE_NAME_MAX (16) is
@@ -195,11 +195,11 @@ void link_ble_init(const char* password) {
   const char* custom = sys_device_name();
   char devname[10 + BRIDGE_NAME_MAX + 1];
   if (custom[0]) {
-    snprintf(devname, sizeof(devname), "espbridge_%s", custom);
+    snprintf(devname, sizeof(devname), "esplink_%s", custom);
   } else {
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(devname, sizeof(devname), "espbridge_%02x%02x%02x%02x%02x%02x",
+    snprintf(devname, sizeof(devname), "esplink_%02x%02x%02x%02x%02x%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   }
   BLEDevice::init(devname);

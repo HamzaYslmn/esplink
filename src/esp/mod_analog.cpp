@@ -1,8 +1,8 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // ADC (oneshot reads), DAC (write + cosine generator), TOUCH.
-#include "espbridge/protocol.h"
-#include "espbridge/modules.h"
-#include "espbridge/radio.h"
+#include "esplink/protocol.h"
+#include "esplink/modules.h"
+#include "esplink/radio.h"
 #include <esp32-hal-adc.h>
 
 #if BRIDGE_HAS_DAC

@@ -1,5 +1,5 @@
 """HC-SR04 driver: echo pulse -> distance."""
-from espbridge.drivers.hcsr04 import HCSR04, echo_to_cm
+from esplink.drivers.hcsr04 import HCSR04, echo_to_cm
 
 
 def test_echo_to_cm():

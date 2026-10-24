@@ -1,11 +1,11 @@
 """Multiple-device support: identity selection, Bridge.all(), BridgeSet."""
 import pytest
 
-import espbridge.bridge as bridge_mod
-from espbridge import constants as C
-from espbridge.bridge import Bridge, Info
-from espbridge.errors import NoDeviceError
-from espbridge.transports import PortInfo
+import esplink.bridge as bridge_mod
+from esplink import constants as C
+from esplink.bridge import Bridge, Info
+from esplink.errors import NoDeviceError
+from esplink.transports import PortInfo
 from fake_firmware import FakeFirmware
 
 
@@ -29,7 +29,7 @@ def test_set_name_persists_and_updates_info(bridge, fw):
 
 
 def test_set_name_refuses_a_name_too_long_for_the_advert(bridge):
-    """The cap keeps "espbridge_<name>" inside the BLE scan response, so a name
+    """The cap keeps "esplink_<name>" inside the BLE scan response, so a name
     that would be truncated over the air is refused outright."""
     bridge.set_name("a" * C.BRIDGE_NAME_MAX)
     with pytest.raises(ValueError, match=f"{C.BRIDGE_NAME_MAX} bytes"):

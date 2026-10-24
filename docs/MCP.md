@@ -1,24 +1,24 @@
 # MCP server — drive the bridge from an AI agent
 
-`espbridge.mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
+`esplink.mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
 server that exposes a connected ESP32 to an LLM as a set of tools. The agent can
 then control every peripheral the bridge supports — read an ADC, scan I2C,
 toggle a relay, join Wi-Fi, snap a camera frame — in plain language.
 
-It wraps the same `espbridge.Bridge` API the rest of the library uses, so the
+It wraps the same `esplink.Bridge` API the rest of the library uses, so the
 firmware does not change: flash it once (see [FIRMWARE.md](FIRMWARE.md)), then
 run the MCP server on the host.
 
 ## Install (once)
 
-Get the `espbridge-mcp` command onto your PATH:
+Get the `esplink-mcp` command onto your PATH:
 
 ```bash
-uv tool install "python-esp-bridge[mcp]"     # or: pip install "python-esp-bridge[mcp]"
+uv tool install "esplink[mcp]"     # or: pip install "esplink[mcp]"
 ```
 
 Then plug your ESP32 into USB. Every assistant below launches that same
-`espbridge-mcp` command and **auto-detects the board** — it tries Bluetooth
+`esplink-mcp` command and **auto-detects the board** — it tries Bluetooth
 first, then falls back to USB serial — so there is nothing else to configure. Ask things like *"read GPIO 34"* or *"scan the I2C bus"*.
 
 > Working from a local clone of this repo (unreleased changes)? Install the
@@ -29,21 +29,21 @@ first, then falls back to USB serial — so there is nothing else to configure. 
 ### Claude Code
 
 This repo ships [`.mcp.json`](../.mcp.json) — open Claude Code in the repo and
-choose **Yes** when it offers to enable the `espbridge` server. Verify with
+choose **Yes** when it offers to enable the `esplink` server. Verify with
 `claude mcp list`.
 
 ### Gemini CLI
 
 This repo ships [`.gemini/settings.json`](../.gemini/settings.json) — open Gemini
 CLI in the repo and run `/mcp` to confirm. To add it globally instead:
-`gemini mcp add espbridge espbridge-mcp`.
+`gemini mcp add esplink esplink-mcp`.
 
 ### Codex CLI
 
 One command:
 
 ```bash
-codex mcp add espbridge -- espbridge-mcp
+codex mcp add esplink -- esplink-mcp
 ```
 
 List with `codex mcp list`.
@@ -54,7 +54,7 @@ In the Agent panel: **⋯** → **MCP Servers** → **Manage MCP Servers** → *
 config**, paste this, save, then **Refresh**:
 
 ```json
-{ "mcpServers": { "espbridge": { "command": "espbridge-mcp", "args": [] } } }
+{ "mcpServers": { "esplink": { "command": "esplink-mcp", "args": [] } } }
 ```
 
 (That edits `~/.gemini/config/mcp_config.json` — on Windows
@@ -67,7 +67,7 @@ client. Simplest, no config file:
 
 ```bash
 ollama pull llama3.2                                        # a tool-capable model
-uvx ollmcp --mcp-server-command "espbridge-mcp" --model llama3.2
+uvx ollmcp --mcp-server-command "esplink-mcp" --model llama3.2
 ```
 
 Tool use needs a tool-capable model (e.g. `llama3.2`, `qwen2.5`).
@@ -77,7 +77,7 @@ Tool use needs a tool-capable model (e.g. `llama3.2`, `qwen2.5`).
 Add this to the client's MCP config (the key is `mcpServers`):
 
 ```json
-{ "mcpServers": { "espbridge": { "command": "espbridge-mcp", "args": [] } } }
+{ "mcpServers": { "esplink": { "command": "esplink-mcp", "args": [] } } }
 ```
 
 ## Pick a board / Bluetooth / HTTP
@@ -91,7 +91,7 @@ args — to the `args` array in a JSON config, or after `--` in the
 - `-b` — Bluetooth instead of USB (built in; no extra needed)
 - `--transport http --host 0.0.0.0 --port-num 8000` — serve over HTTP for remote / multi-client use
 
-`espbridge-mcp --help` lists every flag. The server connects at startup and
+`esplink-mcp --help` lists every flag. The server connects at startup and
 auto-reconnects on the first tool call if the link drops.
 
 ## Tools
@@ -142,14 +142,14 @@ Every tool reports what it did on the board — e.g.
 message goes to two
 places:
 
-- the **server log** (stderr) — visible to whoever runs `espbridge-mcp`;
+- the **server log** (stderr) — visible to whoever runs `esplink-mcp`;
 - an **MCP notification** — shown by clients that display server logs, so you
   watch board activity live alongside the agent.
 
 Successful actions are reported as **info**; failed ones (e.g. a write to a bad
 pin) as **warnings** — so *every* action shows up, not just the ones that worked.
 
-It's **on by default**. Turn it off — start with `espbridge-mcp --no-feedback`,
+It's **on by default**. Turn it off — start with `esplink-mcp --no-feedback`,
 or at runtime ask the agent to call `bridge_feedback(enabled=false)` (and
 `true` to turn it back on).
 
@@ -159,14 +159,14 @@ Build the server in your own process — register extra tools, pick the transpor
 or share a `Bridge` you already manage:
 
 ```python
-from espbridge.mcp import build_server
+from esplink.mcp import build_server
 
 server = build_server(port="COM7")          # a fastmcp.FastMCP instance
 
 @server.tool
 def blink(pin: int, times: int = 3) -> str:
     """Blink an LED a few times."""
-    from espbridge.mcp.server import BridgeManager  # or capture your own manager
+    from esplink.mcp.server import BridgeManager  # or capture your own manager
     ...
 
 server.run()                                # stdio; or run(transport="http", ...)
@@ -176,7 +176,7 @@ For full control over the connection lifecycle, construct a `BridgeManager`
 yourself and pass it in:
 
 ```python
-from espbridge.mcp import BridgeManager, build_server
+from esplink.mcp import BridgeManager, build_server
 
 mgr = BridgeManager(port="COM7", upgrade_baud=True)
 build_server(mgr).run()

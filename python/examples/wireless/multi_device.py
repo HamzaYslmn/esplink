@@ -2,19 +2,19 @@
 
 From the shell, search all attached devices first:
 
-    espbridge ports     # serial ports only (no connection)
-    espbridge scan      # connect to each: port, name, MAC, chip, firmware
+    esplink ports     # serial ports only (no connection)
+    esplink scan      # connect to each: port, name, MAC, chip, firmware
 
 One-time setup — give each board a name (stored in its flash, max 16 chars so it
 fits the Bluetooth advertisement):
 
-    espbridge -p COM7 set-name sensors
-    espbridge -p COM8 set-name relays
+    esplink -p COM7 set-name sensors
+    esplink -p COM8 set-name relays
 """
-import espbridge
+import esplink
 
 # Bridge() is one board; Bridge.all() is every bridge that's plugged in.
-with espbridge.Bridge.all() as boards:
+with esplink.Bridge.all() as boards:
     print(f"found {len(boards)} board(s):")
     for esp in boards:
         info = esp.info
@@ -35,5 +35,5 @@ with espbridge.Bridge.all() as boards:
         print("light sensor:", sensors.adc.read_mv(34), "mV")
 
 # To open specific boards and nothing else, name them:
-#     with espbridge.Bridge("relays") as esp:                      # one
-#     with espbridge.Bridge.all(["relays", "sensors"]) as boards:  # several
+#     with esplink.Bridge("relays") as esp:                      # one
+#     with esplink.Bridge.all(["relays", "sensors"]) as boards:  # several

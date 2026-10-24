@@ -1,8 +1,8 @@
 """DS18B20 driver: scratchpad decode + full read flow over the fake bus."""
 import pytest
 
-from espbridge.drivers.ds18b20 import DS18B20, parse_scratchpad
-from espbridge.onewire import crc8
+from esplink.drivers.ds18b20 import DS18B20, parse_scratchpad
+from esplink.onewire import crc8
 
 from test_onewire import rom
 

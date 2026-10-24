@@ -1,7 +1,7 @@
 """Ethernet + camera (opt-in modules)."""
 import pytest
 
-from espbridge.camera import FRAMESIZE_SVGA
+from esplink.camera import FRAMESIZE_SVGA
 
 
 def test_eth_preset_rmii(bridge, fw):

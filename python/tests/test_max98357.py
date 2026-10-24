@@ -1,5 +1,5 @@
-"""espbridge.drivers.max98357.MAX98357: I2S output, play passthrough + tone gen."""
-from espbridge.drivers.max98357 import MAX98357
+"""esplink.drivers.max98357.MAX98357: I2S output, play passthrough + tone gen."""
+from esplink.drivers.max98357 import MAX98357
 
 
 class FakeI2s:
