@@ -2,7 +2,7 @@
 export const PROTOCOL_VERSION = 1;
 export const FW_VERSION_MAJOR = 2;
 export const FW_VERSION_MINOR = 0;
-export const FW_VERSION_PATCH = 0;
+export const FW_VERSION_PATCH = 1;
 export const FLAG_EVENT = 1;
 export const FLAG_ERROR = 2;
 export const FLAG_MORE = 4;
