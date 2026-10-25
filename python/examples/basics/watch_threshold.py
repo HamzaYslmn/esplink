@@ -76,20 +76,6 @@ def main():
         print("\nstopped.")
 
 
-# --- Prefer async/await? The same rule as an async stream -----------------------
-#
-#     import asyncio
-#     from esplink import AsyncBridge
-#
-#     async def main():
-#         async with AsyncBridge(ble=True) as esp:
-#             await esp.watch.add("adc", pin=4, above=to_raw(200),
-#                                 hysteresis=to_raw(8), period_ms=50)
-#             async for ev in esp.watch_events():
-#                 print("crossed" if ev.active else "cleared", to_255(ev.value))
-#
-#     asyncio.run(main())
-#
 # Any source + any condition — mix and match:
 #     esp.watch.add("gpio",   pin=15, equals=1)            # digital: pin reads high
 #     esp.watch.add("gpio",   pin=15, equals=0)            # digital: pin reads low

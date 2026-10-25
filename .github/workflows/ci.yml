@@ -11,13 +11,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.13", "3.14"]
+        python: ["3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10
         with:
           python-version: ${{ matrix.python }}
 
       - name: Run tests
         run: uv run --with pytest --with pyserial --with pillow --with gpiozero pytest python/tests/ -q
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Run tests
+        working-directory: js
+        run: node --test

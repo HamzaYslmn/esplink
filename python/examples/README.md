@@ -113,7 +113,6 @@ One folder per ecosystem — existing code from these libraries runs unchanged:
 | [`compat/adafruit/bme280.py`](compat/adafruit/) | **Adafruit CircuitPython** drivers via the blinka shim |
 | [`compat/luma/oled.py`](compat/luma/) | **luma.oled** display library |
 | [`compat/smbus/read_register.py`](compat/smbus/) | **smbus2**-style I2C register access |
-| [`compat/rpi_gpio/blink.py`](compat/rpi_gpio/) | **RPi.GPIO**-style scripts, only the import changes |
 
 ## Staying connected — stability tips
 

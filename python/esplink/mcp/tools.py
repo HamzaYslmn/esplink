@@ -44,7 +44,7 @@ SKIP_SUBAPI = {"net", "ble"}
 
 # Bridge's own methods, exposed as system_<name>.
 SYSTEM = ("ping", "free_heap", "reset", "set_name", "deep_sleep", "light_sleep",
-          "wake_cause", "cpu_freq", "power_mode", "link_power", "radio_off")
+          "wake_cause", "cpu_freq", "link_power", "radio_off")
 
 # Volume methods (esp.fs.mount(kind) -> Volume), exposed as fs_<name> with the
 # volume kind as an extra argument. The rest of fs is composites below.

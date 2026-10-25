@@ -1,0 +1,49 @@
+{
+  "name": "esplink",
+  "version": "1.0.2",
+  "description": "Drive every ESP32 peripheral from JavaScript over USB serial, Bluetooth or Wi-Fi — in the browser (Web Serial / Web Bluetooth) or Node.",
+  "type": "module",
+  "exports": {
+    ".": "./src/bridge.js",
+    "./web": "./src/web.js",
+    "./node": "./src/node.js"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "gen": "node scripts/gen-commands.mjs"
+  },
+  "peerDependencies": {
+    "serialport": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "serialport": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "esp32",
+    "esp32-s3",
+    "gpio",
+    "i2c",
+    "spi",
+    "web-serial",
+    "web-bluetooth",
+    "firmata",
+    "iot"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HamzaYslmn/esplink.git",
+    "directory": "js"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "serialport": "^13.0.0"
+  }
+}

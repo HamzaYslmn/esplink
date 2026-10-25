@@ -127,7 +127,9 @@ def test_version_lockstep():
     pyproject = re.search(r'^version = "([^"]+)"$',
                           (root / "python" / "pyproject.toml").read_text(encoding="utf-8"),
                           re.MULTILINE).group(1)
+    import json
+    npm = json.loads((root / "js" / "package.json").read_text(encoding="utf-8"))["version"]
 
-    assert fw_str == lib == pyproject == esplink.__version__, (
+    assert fw_str == lib == pyproject == esplink.__version__ == npm, (
         f"version drift: firmware={fw_str} library.properties={lib} "
-        f"pyproject={pyproject} __version__={esplink.__version__}")
+        f"pyproject={pyproject} __version__={esplink.__version__} js/package.json={npm}")

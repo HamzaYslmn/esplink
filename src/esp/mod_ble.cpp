@@ -1,9 +1,10 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // BLE module: advertising/scanning, a GATT server (multiple services), and a
 // basic GATT client supporting a single simultaneous connection.
-// Uses the Bluedroid BLE library bundled with arduino-esp32 core 3.x.
+// The core's own BLE library: Bluedroid on the classic ESP32, NimBLE on
+// S3/C3/C6, one API — the same stack as the BLE link.
 //
-// Command handlers run on slow_task. Bluedroid internal callbacks (scan results,
+// Command handlers run on slow_task. BT host callbacks (scan results,
 // GATT writes, connect/disconnect) run on BT stack tasks. Both paths only
 // enqueue data via proto_send_event — tx_task is the sole serial writer.
 #include "esplink/protocol.h"
@@ -33,25 +34,20 @@ static void ble_lazy_init() {
   ble_ready = true;
 }
 
-// ---- UUID helpers -----------------------------------------------------------
-// All UUIDs on the wire are 16 bytes, big-endian (MSB first).
-// Bluedroid stores 128-bit UUIDs in little-endian order internally, so
-// uuid_to_wire() reverses the byte order when converting to the wire format.
-// Short (16- or 32-bit) UUIDs are expanded into the standard Bluetooth base UUID.
-static const uint8_t BASE_UUID_MSB[16] = {
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
-  0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB,
-};
+// ---- wire format ------------------------------------------------------------
+// UUIDs (16 bytes) and addresses (6 bytes) travel big-endian, display order.
+// The stacks store both differently, so convert through the text form both
+// print identically ("0000180f-0000-1000-8000-00805f9b34fb", "aa:bb:...").
+static void hex_to_bytes(const String& s, uint8_t* out, size_t n) {
+  for (size_t i = 0, j = 0; i < n && j + 1 < s.length(); j++) {
+    if (!isxdigit((unsigned char)s[j])) continue;
+    out[i++] = (uint8_t)strtoul(s.substring(j, j + 2).c_str(), nullptr, 16);
+    j++;
+  }
+}
 
 static void uuid_to_wire(BLEUUID uuid, uint8_t out[16]) {
-  const esp_bt_uuid_t* n = uuid.getNative();
-  if (n->len == ESP_UUID_LEN_128) {
-    for (int i = 0; i < 16; i++) out[i] = n->uuid.uuid128[15 - i];  // LE -> MSB
-  } else {
-    memcpy(out, BASE_UUID_MSB, 16);
-    uint32_t v = n->len == ESP_UUID_LEN_16 ? n->uuid.uuid16 : n->uuid.uuid32;
-    write_be32(out, v);
-  }
+  hex_to_bytes(uuid.to128().toString(), out, 16);  // short UUIDs expand onto the base UUID
 }
 
 static BLEUUID wire_to_uuid(const uint8_t* w) {
@@ -63,9 +59,7 @@ static const uint8_t BLE_ADV_MAX_PAYLOAD = 62;  // max adv+scanrsp bytes we forw
 class AdvCb : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice dev) override {
     uint8_t buf[8 + BLE_ADV_MAX_PAYLOAD];
-    // getNative() returns a pointer to the raw 6-byte address array.
-    // The type changed across arduino-esp32 versions; uint8_t* is correct on core 3.x.
-    memcpy(buf, dev.getAddress().getNative(), 6);
+    hex_to_bytes(dev.getAddress().toString(), buf, 6);
     buf[6] = (uint8_t)dev.getAddressType();
     buf[7] = (uint8_t)(int8_t)dev.getRSSI();
     uint8_t plen = dev.getPayloadLength() > BLE_ADV_MAX_PAYLOAD ? BLE_ADV_MAX_PAYLOAD : dev.getPayloadLength();
@@ -128,7 +122,7 @@ static BLERemoteCharacteristic* find_remote_chr(const uint8_t* svc_w, const uint
 }
 
 // SYS_RADIO_OFF asks before killing the BT stack: once this module has touched
-// Bluedroid, deinit would leave its scan/server/client pointers dangling.
+// the BT stack, deinit would leave its scan/server/client pointers dangling.
 bool ble_module_active() { return ble_ready; }
 
 void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
@@ -190,7 +184,7 @@ void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (n == 0 || char_count + n > BLE_MAX_CHARS ||
           len < (uint16_t)(17 + n * 17)) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       if (!server_obj) {
-        // Bluedroid allows only one GATT server per device. If link_ble.cpp
+        // There is one GATT server per device. If link_ble.cpp
         // has already created one for the bridge link, reuse it here instead
         // of creating a second one. In that case link_ble.cpp's connection
         // callbacks remain in charge of connect/disconnect events.
@@ -237,9 +231,9 @@ void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
         client_obj = BLEDevice::createClient();
         client_obj->setClientCallbacks(&cli_cb);
       }
-      esp_bd_addr_t addr;
-      memcpy(addr, p, 6);
-      if (!client_obj->connect(BLEAddress(addr), (esp_ble_addr_type_t)p[6])) {
+      char addr[18];
+      snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x", p[0], p[1], p[2], p[3], p[4], p[5]);
+      if (!client_obj->connect(BLEAddress(String(addr), p[6]), p[6])) {
         proto_reply_err(seq, cmd, ST_IO);
         return;
       }

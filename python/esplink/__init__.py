@@ -41,22 +41,20 @@ from .watch import WatchEvent
 
 
 def find_ble_devices(timeout: float = 5.0):
-    """Scan for bridges advertising over Bluetooth (needs the [ble] extra)."""
+    """Scan for bridges advertising over Bluetooth."""
     from .transports.ble import find_ble_devices as _scan
 
     return _scan(timeout)
 
-
 def __getattr__(name):
-    # Lazy: importing AsyncBridge pulls in asyncio, so defer it until first use
-    # rather than charging every sync/USB-only script for the import.
-    if name == "AsyncBridge":
+    if name == "AsyncBridge":  # lazy: only asyncio users pay for importing asyncio
         from .aio import AsyncBridge
 
         return AsyncBridge
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-__version__ = "1.0.1"
+
+__version__ = "1.0.2"
 
 # Grouped by role, not alphabetised: this list is the shape of the public API.
 __all__ = [

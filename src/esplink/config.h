@@ -42,8 +42,8 @@
 #define BRIDGE_ETH         0
 #define BRIDGE_CAM         0
 
-// The Bluefruit BLE stack is always present on this core (no controller/host
-// gating like the ESP Bluedroid path), so BRIDGE_BLE tracks the opt-in alone.
+// The Bluefruit BLE stack is always present on this core, so BRIDGE_BLE
+// tracks the opt-in alone.
 #if BRIDGE_ENABLE_BLE
 #define BRIDGE_BLE 1
 #else
@@ -139,10 +139,9 @@
 #define BRIDGE_HAS_RMT     1   // pulse-train play/capture
 #define BRIDGE_HAS_ONEWIRE 1   // bit-banged 1-Wire timing primitives
 #define BRIDGE_HAS_FS      1   // LittleFS always; SD depends on IRAM (below)
-// Classic ESP32 with Wi-Fi + Bluedroid leaves almost no spare IRAM. The SD-SPI
-// and SDMMC drivers each add IRAM-resident ISRs that overflow the iram0_0_seg
-// segment on that chip. Setting BRIDGE_ENABLE_BLE 0 frees BT IRAM and
-// allows SD to build on classic ESP32.
+// Classic ESP32 with Wi-Fi + BLE: the SD-SPI and SDMMC drivers' IRAM-resident
+// ISRs overflow iram0_0_seg; sleep alone fits (measured, core 3.3.12).
+// BRIDGE_ENABLE_BLE 0 frees the room and brings SD back.
 #if defined(CONFIG_IDF_TARGET_ESP32) && BRIDGE_ENABLE_BLE
   #define BRIDGE_HAS_SD    0
 #else
@@ -153,16 +152,7 @@
 #else
   #define BRIDGE_HAS_SDMMC 0
 #endif
-// The IDF sleep driver (sleep_modes.c) is also IRAM-resident. Even just
-// arming deep-sleep overflows the ~436 B of IRAM still available on classic
-// ESP32 once Wi-Fi + Bluedroid are loaded (measured). Same trade-off as SD:
-// set BRIDGE_ENABLE_BLE 0 to recover that IRAM and enable sleep on classic.
-// S2/S3/C3/C6 have no such constraint — sleep is always available there.
-#if defined(CONFIG_IDF_TARGET_ESP32) && BRIDGE_ENABLE_BLE
-  #define BRIDGE_HAS_SLEEP 0
-#else
-  #define BRIDGE_HAS_SLEEP 1
-#endif
+#define BRIDGE_HAS_SLEEP   1   // deep/light sleep
 #define BRIDGE_HAS_NVS     1   // key/value store
 #define BRIDGE_HAS_OTA     1   // firmware update over the link
 #ifdef SOC_TWAI_SUPPORTED
@@ -202,11 +192,11 @@
   #define BRIDGE_CAM 0
 #endif
 
-// BLE also requires the Bluedroid host stack. arduino-esp32 3.3.x switched
-// S3/C3/C6 to NimBLE, which link_ble.cpp and mod_ble.cpp do not yet support,
-// so those chips fall back to USB-only. ESP-NOW and all other modules still
-// work on them.
-#if BRIDGE_ENABLE_BLE && BRIDGE_HAS_BLE && defined(SOC_BLE_SUPPORTED) && defined(CONFIG_BT_BLUEDROID_ENABLED)
+// The core's BLE library builds on whichever host the chip's IDF ships —
+// Bluedroid on the classic ESP32, NimBLE on S3/C3/C6 — so every chip with a
+// BLE radio gets the link (same guard as the library itself).
+#if BRIDGE_ENABLE_BLE && BRIDGE_HAS_BLE && defined(SOC_BLE_SUPPORTED) && \
+    (defined(CONFIG_BLUEDROID_ENABLED) || defined(CONFIG_NIMBLE_ENABLED))
   #define BRIDGE_BLE 1
 #else
   #define BRIDGE_BLE 0

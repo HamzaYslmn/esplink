@@ -1,6 +1,6 @@
 // BLE transport link (nRF52): runs the bridge protocol over the Bluefruit
 // Nordic UART Service (BLEUart), whose UUIDs are exactly the protocol's link
-// UUIDs (6e400001/2/3-...). Counterpart to src/esp/link_ble.cpp (Bluedroid).
+// UUIDs (6e400001/2/3-...). Counterpart to src/esp/link_ble.cpp.
 // See esplink/link.h for the public API contract.
 //
 // RX: the central writes the NUS RX characteristic; Bluefruit buffers it in the
@@ -44,8 +44,6 @@ static void disconnect_cb(uint16_t h, uint8_t reason) {
   conn_handle = BLE_CONN_HANDLE_INVALID;
   // advertising restarts automatically (restartOnDisconnect(true))
 }
-
-void bt_prepare_ble_only() {}  // ESP-only concern; nothing to do on nRF
 
 void link_ble_init(const char* password) {
   link_password = password ? password : "";
@@ -95,7 +93,6 @@ uint32_t link_ble_rx_dropped() { return 0; }  // BLEUart FIFO drops are not coun
 bool link_ble_authed() { return connected && authed; }
 void link_ble_set_authed(bool v) { authed = v; }
 const char* link_ble_password() { return link_password; }
-void* link_ble_server() { return nullptr; }  // mod_ble GATT is not supported on nRF52
 
 bool link_ble_up() { return enabled && connected; }
 
@@ -108,7 +105,7 @@ bool link_ble_power(bool battery) {
   return true;
 }
 
-bool link_ble_writable() {
+static bool link_ble_writable() {
   return link_ble_up() && bleuart.notifyEnabled(conn_handle);
 }
 
@@ -134,7 +131,6 @@ uint16_t link_ble_read(uint8_t* buf, uint16_t maxlen) {
 #else  // !BRIDGE_BLE — empty stubs so the rest of the codebase links cleanly
 
 void link_ble_init(const char*) {}
-void bt_prepare_ble_only() {}
 bool link_ble_enabled() { return false; }
 uint32_t link_ble_rx_dropped() { return 0; }
 bool link_ble_authed() { return false; }
@@ -142,10 +138,8 @@ void link_ble_set_authed(bool) {}
 const char* link_ble_password() { return ""; }
 bool link_ble_up() { return false; }
 bool link_ble_power(bool) { return false; }
-bool link_ble_writable() { return false; }
 uint16_t link_ble_write_chunk(const uint8_t*, uint16_t) { return 0; }
 uint16_t link_ble_read(uint8_t*, uint16_t) { return 0; }
-void* link_ble_server() { return nullptr; }
 
 #endif  // BRIDGE_BLE
 #endif  // ARDUINO_ARCH_NRF52

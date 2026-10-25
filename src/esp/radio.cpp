@@ -15,7 +15,7 @@ static bool driver_resident = false;
 bool radio_acquire(uint8_t user) {
   // Refuse an acquire that would starve a live BLE session (margins in
   // config.h) — a clean ST_NO_MEM beats the radio eating the heap out from
-  // under Bluedroid mid-command. Three cost tiers, matched to what the
+  // under the BLE stack mid-command. Three cost tiers, matched to what the
   // acquire actually allocates:
   //   driver down:  full bring-up (~52 KB first, ~33 KB restart)
   //   driver up, ESP-NOW: joins the running driver for free — no guard
@@ -40,7 +40,7 @@ void radio_release(uint8_t user) {
   users &= ~user;
   // Powering the radio off reclaims ~50 KB of driver heap. This matters most
   // over BLE: nothing resets the board between Bluetooth sessions, so a
-  // driver left resident would pin the heap near the Bluedroid floor and
+  // driver left resident would pin the heap near the BLE stack's floor and
   // cripple every later BLE session.
   if (!users) WiFi.mode(WIFI_MODE_NULL);
 }

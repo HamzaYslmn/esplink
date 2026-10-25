@@ -2,7 +2,7 @@
 
 The firmware advertises a Nordic-UART-style GATT service (see firmware
 link_ble.cpp); this transport carries the exact same COBS frame stream over
-it. Requires the `bleak` package: ``pip install esplink[ble]``.
+it. Requires the `bleak` package: ``pip install bleak``.
 
 bleak is asyncio-based; a private event loop runs in a daemon thread so the
 transport exposes the same blocking read()/write() interface as the serial
@@ -77,7 +77,7 @@ def _require_bleak():
     except ImportError:
         raise BridgeError(
             "the Bluetooth transport needs the 'bleak' package — "
-            "install with: pip install esplink[ble]"
+            "install with: pip install bleak"
         ) from None
 
 
@@ -236,7 +236,9 @@ class BleTransport:
                         "chunked at 20 bytes (slow link)")
         # Cache the negotiated chunk size: stable once the MTU exchange lands,
         # so per-write attribute reads are unnecessary.
-        self._chunk_size = max(20, self._rx_char.max_write_without_response_size)
+        # ...capped at 512: no attribute value may exceed that (Core spec, ATT).
+        # Bluedroid lets MTU-3 = 514 through; NimBLE (S3/C3) drops the write.
+        self._chunk_size = min(512, max(20, self._rx_char.max_write_without_response_size))
 
     def _on_notify(self, _char, data: bytearray) -> None:
         self._rx.put(bytes(data))

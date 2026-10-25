@@ -62,7 +62,7 @@ class FakeGpio:
     def mode(self, pin, mode):
         self.modes[pin] = mode
 
-    def write(self, pin, level, *, verify=False):
+    def write(self, pin, level):
         self.writes.append((pin, 1 if level else 0))
         return 1 if level else 0
 

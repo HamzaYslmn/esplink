@@ -68,7 +68,6 @@ def test_gpio_write_returns_readback(bridge, fw):
     bridge.gpio.mode(2, "output")
     assert bridge.gpio.write(2, 1) == 1          # write returns the confirmed level
     assert bridge.gpio.write(2, 0) == 0
-    assert bridge.gpio.write(2, 1, verify=True) == 1  # verify passes when it matches
 
 
 def test_remote_error_maps_status(bridge):
@@ -180,16 +179,6 @@ def test_link_power_modes(bridge, fw):
     with pytest.raises(ValueError):
         bridge.link_power("turbo")
 
-
-def test_power_mode_battery_applies_both(bridge, fw):
-    assert bridge.power_mode("battery") == {"cpu_mhz": 80, "ble_link": "battery"}
-    assert (fw.cpu_mhz, fw.link_power_mode) == (80, 1)
-    assert bridge.power_mode("performance") == {"cpu_mhz": 240, "ble_link": "performance"}
-
-
-def test_power_mode_skips_ble_on_usb_session(bridge, fw):
-    fw.ble_central = False  # firmware replies NOT_INIT to LINK_POWER
-    assert bridge.power_mode("battery") == {"cpu_mhz": 80, "ble_link": None}
 
 
 def test_gpio_edge_events_dispatch(bridge, fw):

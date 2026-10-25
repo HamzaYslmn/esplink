@@ -199,7 +199,7 @@ def phase_wifi_coex(esp: Bridge, seconds: float) -> None:
     """Bring the Wi-Fi radio up (AP + repeated scans) while a ping flood runs
     concurrently — the Wi-Fi+BLE+link coex case the firmware was hardened for.
     The link must stay lossless while the radio is busy."""
-    if C.Cap.WIFI not in esp.caps:
+    if C.Cap.WIFI not in esp.info.caps:
         print("\n[4] wifi coex — SKIPPED (no WIFI capability)")
         return
     print(f"\n[4] wifi coex — Wi-Fi up while pinging the link, {seconds:g}s")
@@ -283,7 +283,7 @@ def phase_wifi_coex(esp: Bridge, seconds: float) -> None:
 def phase_espnow_coex(a: Bridge, b: Bridge, count: int) -> None:
     """ESP-NOW flood A->B while BOTH boards' USB links carry a ping flood —
     Wi-Fi-band radio + two busy links at once (full coex)."""
-    if C.Cap.ESPNOW not in a.caps or C.Cap.ESPNOW not in b.caps:
+    if C.Cap.ESPNOW not in a.info.caps or C.Cap.ESPNOW not in b.info.caps:
         print("\n[5] espnow coex — SKIPPED (a board lacks ESPNOW)")
         return
     print(f"\n[5] espnow coex — {count} A->B packets while both links ping-flood")

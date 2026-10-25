@@ -38,10 +38,9 @@ GPIO, ADC/DAC, PWM, touch, I2C, SPI, UART, Wi-Fi sockets, BLE, ESP-NOW, RMT,
 - **arduino-esp32 core 3.x** (Boards Manager → "esp32 by Espressif Systems").
   The 3.x LEDC/String APIs are required; it will not build on 2.x.
   Tested with **3.3.12** (classic ESP32, Minimal SPIFFS partition scheme).
-- No external libraries — Bluetooth uses the bundled Bluedroid stack.
-  Note: core 3.3.x ships NimBLE (not Bluedroid) on S3/C3/C6, so the Bluetooth
-  link is currently classic-ESP32 only; other chips build USB-only
-  automatically (ESP-NOW and everything else still work).
+- No external libraries. Bluetooth is the core's own `BLE` library, which runs
+  Bluedroid on the classic ESP32 and NimBLE on S3/C3/C6 behind one API, so the
+  BLE link and `esp.ble` work on every chip with a radio.
 
 ## Nordic nRF52840 (Seeed XIAO / Adafruit Bluefruit)
 
@@ -127,7 +126,7 @@ association cannot survive it.
 The first `begin()` spins up the FreeRTOS task model — separate TX / RX /
 blocking-handler tasks, so a blocking TCP or BLE connect never stalls
 GPIO/I2C/SPI. `run()` then deletes the Arduino loop task to hand its 8 KB stack
-back to the heap, which a classic ESP32 running Wi-Fi + Bluedroid needs badly.
+back to the heap, which a classic ESP32 running Wi-Fi + Bluetooth needs badly.
 Omit `run()` and `loop()` keeps running instead: the sketch can do its own work
 (on core 1, next to the command handlers) while the bridge serves the host, at
 the cost of that 8 KB — fine for USB-only boards, risky with BLE + Wi-Fi up.
@@ -207,11 +206,11 @@ Flags: `BRIDGE_ENABLE_ETH=1` (RMII or SPI W5500), `BRIDGE_ENABLE_CAM=1`
 default dual-core layout: `1` leaves the radio core untouched, `0` leaves
 core 1 entirely to the sketch — pair with omitting `EspLink.run()`).
 
-**Classic-ESP32 IRAM trade-off:** Wi-Fi + Bluedroid fill the chip's instruction
-RAM, so the default classic build ships without SD-card support (LittleFS still
-works) and without deep/light sleep. Building with `-DBRIDGE_ENABLE_BLE=0`
-frees the BT IRAM and re-enables SD, SDMMC and sleep. S2/S3/C3/C6 have
-everything in every build.
+**Classic-ESP32 IRAM trade-off:** with Wi-Fi + BLE loaded the SD-card drivers
+don't fit the chip's instruction RAM, so the default classic build ships without
+SD (LittleFS and deep/light sleep work). Building with `-DBRIDGE_ENABLE_BLE=0`
+frees the BT IRAM and re-enables SD and SDMMC. S2/S3/C3/C6 have everything in
+every build.
 
 ## Bluetooth discovery
 

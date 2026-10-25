@@ -18,8 +18,8 @@ It's not analog-only — the *source* is whatever you pick:
     esp.watch.add("touch", pin=4, below=40, callback=on_trip)                    # touch pad
     esp.watch.add("heap", change=20000, callback=on_trip)                        # free RAM
 
-The callback runs on the bridge's reader thread. For ``await``-style code use
-``async for ev in AsyncBridge.watch_events()`` (see :mod:`esplink.aio`).
+The callback runs on the bridge's reader thread. From asyncio:
+``async for ev in esp.events(C.WATCH_EVT, WatchEvent.parse)`` (see :mod:`esplink.aio`).
 
 Rules can also *act on the board itself* — no host round trip, so the reaction
 is deterministic (~ the rule's period) even over BLE or a busy USB link:

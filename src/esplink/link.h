@@ -20,11 +20,8 @@
 // Register the GATT service and start advertising. No-op on chips without BLE.
 void link_ble_init(const char* password);
 
-// Classic ESP32 only: releases Classic BT memory back to the heap and starts
-// the controller in BLE-only mode. MUST be called before any other BT
-// initialization — Wi-Fi coexistence plus dual-mode Bluedroid do not fit in
-// RAM together, and a failed Bluedroid init causes a crash on core 0.
-// Safe to call repeatedly; no-op on chips other than classic ESP32.
+// Classic ESP32 only: release the Classic BT pool and start the controller
+// BLE-only. Must run before any BT init; safe to repeat; no-op elsewhere.
 void bt_prepare_ble_only();
 
 bool link_ble_enabled();    // link_ble_init() succeeded
@@ -38,14 +35,13 @@ const char* link_ble_password();
 // while writable, then moves on to the other link.
 bool link_ble_up();        // a central is connected (frames may be in flight)
 bool link_ble_power(bool battery);  // conn-params profile; false if no central
-bool link_ble_writable();  // ...and the BT stack can take a notification now
 uint16_t link_ble_write_chunk(const uint8_t* data, uint16_t len);  // bytes consumed
 
 // RX (rx_task only): drain bytes written by the BLE client; returns bytes copied.
 uint16_t link_ble_read(uint8_t* buf, uint16_t maxlen);
 
-// The link layer's BLEServer*, so mod_ble.cpp reuses it instead of creating a
-// second GATT server. nullptr when BLE is disabled or uninitialised.
+// The link's BLEServer*, so mod_ble.cpp reuses the one GATT server instead of
+// creating a second. nullptr when BLE is disabled or uninitialised.
 void* link_ble_server();
 
 // SYS_RADIO_OFF: shut the BT stack down until reboot (false while a central is

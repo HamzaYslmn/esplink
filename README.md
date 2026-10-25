@@ -27,7 +27,7 @@ are implemented in Python where they are easy to read, test and extend.
 
 ## Quick start
 
-*Works on Raspberry Pi OS, Linux, Windows, and macOS (requires Python ≥ 3.11).*
+*Works on Raspberry Pi OS, Linux, Windows, and macOS (requires Python ≥ 3.13).*
 
 1. **Flash the firmware once.** No Arduino IDE needed — flash the bundled
    prebuilt firmware straight from the host (lists the serial ports, you pick
@@ -59,8 +59,7 @@ are implemented in Python where they are easy to read, test and extend.
    uv pip install esplink         # ...or into the active environment
    ```
 
-   Bluetooth works out of the box (no extra); the old `[ble]` extra is kept as
-   a no-op for back-compat.
+   Bluetooth works out of the box (no extra).
 
 3. **Go:**
 
@@ -450,17 +449,15 @@ is ~95% of that slot; `Huge APP` also works if you don't need OTA). Verified:
 USB at 1.5 Mbaud, the BLE link, ESP-NOW, and Wi-Fi/BLE/ESP-NOW coexistence —
 see `python/examples/wireless/stress_test.py` for the soak/coex suite used.
 
-> **Bluetooth note:** arduino-esp32 core 3.x ships the NimBLE host on
-> S3/C3/C6/H2 — the bridge's Bluetooth code (BLE link + `esp.ble`) speaks
-> Bluedroid, so on those chips the firmware currently builds USB-only.
-> Classic ESP32 keeps Bluedroid: full BLE link + Wi-Fi + ESP-NOW coexistence.
+> **Bluetooth:** the core's own BLE library on every chip (Bluedroid on the
+> classic ESP32, NimBLE on S3/C3/C6) — the BLE link and `esp.ble` work on all.
 
 > **Classic-ESP32 IRAM trade-off:** with Wi-Fi + Bluetooth both loaded the
-> chip's instruction RAM is full, so the default classic build skips SD-card
-> support (LittleFS still works) and deep/light sleep. Build with
-> `BRIDGE_ENABLE_BLE 0` (USB-only) to get SD + sleep back; S2/S3/C3/C6/H2 have
-> everything regardless. The Python API raises a clear `UnsupportedError`
-> either way (`Cap.SLEEP`, `Cap.SDMMC` probing).
+> chip's instruction RAM has no room for the SD-card drivers, so the default
+> classic build skips SD (LittleFS still works; deep/light sleep does too).
+> Build with `BRIDGE_ENABLE_BLE 0` (USB-only) to get SD back; S2/S3/C3/C6/H2
+> have everything regardless. The Python API raises a clear `UnsupportedError`
+> (`Cap.SDMMC` probing).
 
 ### Per-chip support matrix (v0.3.5 modules)
 

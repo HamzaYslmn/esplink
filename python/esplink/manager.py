@@ -19,7 +19,7 @@ or FastAPI route, where every request shares the one connection:
         return {"level": esplink.connect(ble=False).gpio.read(pin)}
 
 For explicit lifetime control (own it, close it deterministically) construct a
-:class:`BridgeManager` yourself. For ``await``, wrap the shared link with
+:class:`BridgeManager` yourself. For ``await``, wrap the shared link:
 ``esplink.AsyncBridge.wrap(esplink.connect(...))``.
 """
 from __future__ import annotations

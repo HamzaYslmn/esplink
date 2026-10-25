@@ -3,12 +3,12 @@ name = "esplink-examples"
 version = "0.1.2"
 description = "Runnable examples for esplink"
 readme = "README.md"
-requires-python = ">=3.11"                # same floor as the library itself
+requires-python = ">=3.13"                # same floor as the library itself
 dependencies = [
     "esplink[all]",             # oled/ble/mcp/flash — Pillow, bleak, esptool
-    "gpiozero>=2",                        # gpiozero/
-    "luma.oled>=3.12",                    # luma/
-    "adafruit-circuitpython-bme280>=2",   # adafruit/ (driver imports work without the sensor)
+    "gpiozero>=2.0.1",                     # gpiozero/
+    "luma.oled>=3.16",                    # luma/
+    "adafruit-circuitpython-bme280>=2.6",# adafruit/ (driver imports work without the sensor)
 ]
 
 # Not on PyPI yet (and for development in general): use the package from this

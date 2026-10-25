@@ -23,5 +23,5 @@ with Bridge() as esp:                      # USB first, then Bluetooth, then Wi-
   realtime work (frees ~110 KB heap, unlocks the ADC2 pins).
 - Firmware (flash once with Arduino IDE) and full docs:
   **<https://github.com/HamzaYslmn/esplink>**
-- Works on Raspberry Pi OS, Linux, Windows, macOS (Python ≥ 3.11, pyserial).
+- Works on Raspberry Pi OS, Linux, Windows, macOS (Python ≥ 3.13, pyserial).
 - `esplink` CLI: connection info; `esplink ports`: list candidate ports.

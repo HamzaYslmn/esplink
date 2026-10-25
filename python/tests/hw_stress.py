@@ -67,22 +67,18 @@ for it in range(1, ITERATIONS + 1):
         return avg < 15, f"300 pings, avg {avg:.2f} ms"
     run_test(it, "sys: ping x300 (relays)", t_ping)
 
-    def t_power_mode():
-        bat = a.power_mode("battery")
-        perf = a.power_mode("performance")
-        # ble_link is None on USB-only, or the mode when a central happens
-        # to be attached -- both correct; assert the CPU knob only.
-        ok = bat["cpu_mhz"] == 80 and perf["cpu_mhz"] == 240
-        return ok, f"battery={bat} performance={perf}"
-    run_test(it, "sys: power_mode cycle (relays)", t_power_mode)
+    def t_cpu_freq():
+        ok = a.cpu_freq(80) == 80 and a.cpu_freq(240) == 240
+        return ok, "80 -> 240 MHz"
+    run_test(it, "sys: cpu_freq cycle (relays)", t_cpu_freq)
 
     # ---- GPIO ----------------------------------------------------------------
     def t_gpio_b():
         b.gpio.mode(2, "output")
         for v in range(200):
             b.gpio.write(2, v & 1)
-        rb = b.gpio.write(2, 0, verify=True)
-        return rb == 0, "200 toggles + verified low"
+        rb = b.gpio.write(2, 0)
+        return rb == 0, "200 toggles + read back low"
     run_test(it, "gpio: toggle x200 pin2 (spare)", t_gpio_b)
 
     def t_gpio_read():

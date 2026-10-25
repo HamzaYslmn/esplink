@@ -8,7 +8,7 @@ listen — boards in range just talk:
     uv run espnow_broadcast.py                # find and run every board
     uv run espnow_broadcast.py relays spare2  # only these (name or MAC)
 
-power_mode("battery") = 80 MHz CPU + relaxed BLE link (radio wakes ~2x/s
+cpu_freq(80) + link_power("battery") = 80 MHz CPU + relaxed BLE link (radio wakes ~2x/s
 instead of ~130x/s) — and ESP-NOW delivery actually improves, because a
 relaxed BLE link leaves more radio time for the Wi-Fi side. Messages just
 arrive in ~0.5 s batches instead of instantly. A board never hears its own
@@ -32,7 +32,8 @@ try:
         esp = Bridge(sel, ble=True, password="esplink")
         boards.append(esp)
         mac = esp.espnow.begin()       # set up at full speed...
-        esp.power_mode("battery")      # ...then relax the radio
+        esp.cpu_freq(80)               # ...then relax the CPU
+        esp.link_power("battery")      # ...and the radio
         me = esp.info.ident
         print(f"{me}: Bluetooth link up (battery profile), ESP-NOW on {mac}")
         esp.espnow.on_receive(

@@ -7,7 +7,7 @@ from . import constants as C
 
 # Attenuation level -> approximate full-scale input range on classic ESP32:
 #   0 dB ≈ 1.1 V,  2.5 dB ≈ 1.5 V,  6 dB ≈ 2.2 V,  11 dB ≈ 3.3 V  (default)
-ATTEN = {0: 0, 2.5: 1, 6: 2, 11: 3, "0db": 0, "2.5db": 1, "6db": 2, "11db": 3}
+ATTEN = {0: 0, 2.5: 1, 6: 2, 11: 3}
 
 
 class Adc:

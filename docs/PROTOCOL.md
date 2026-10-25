@@ -200,7 +200,7 @@ Consequences visible to the host:
 
 - A blocking operation (TCP connect ≤5 s, BLE connect) **only** delays other
   WIFI/NET/BLE commands; GPIO/I2C/SPI/`SYS_PING` stay fully responsive.
-- Replies and events can be produced from any task (GPIO ISRs, Bluedroid and
+- Replies and events can be produced from any task (GPIO ISRs, BLE and
   Wi-Fi callbacks included) — everything funnels through the TX queue, so
   frames never interleave.
 - **Responses across modules may arrive out of request order** (e.g. a GPIO
@@ -404,15 +404,13 @@ air and then stops matching.
   `esp_log`; on UART links those bytes would corrupt COBS frames, so the
   firmware redirects them into `SYS_LOG` (level 1) events. ROM boot output and
   panic dumps still hit UART0 raw. Native-USB chips keep IDF logs on UART0.
-- **Stale BLE bonds** (Bluedroid NVS): switching a board between BLE-using
+- **Stale BLE bonds** (BLE stack NVS): switching a board between BLE-using
   firmwares can leave NVS namespaces that assert at boot — do a one-time
   "Erase All Flash" when flashing over unknown firmware.
-- **Classic-ESP32 IRAM budget**: with Wi-Fi + Bluedroid loaded there is
-  ~1.7 KB of instruction RAM to spare. The SD drivers (~4.4 KB of IRAM ISRs)
-  and the IDF sleep API (~1.7 KB) don't fit, so on classic ESP32 with the BLE
-  link compiled in: `CAP_SLEEP` is absent and FS offers LittleFS only.
-  Building with `BRIDGE_ENABLE_BLE 0` frees the BT IRAM and restores SD,
-  SDMMC and sleep. Other chips are unaffected.
+- **Classic-ESP32 IRAM budget**: with Wi-Fi + BLE loaded, the SD drivers'
+  IRAM ISRs don't fit (sleep does, as of core 3.3.12), so on classic ESP32
+  with the BLE link compiled in FS offers LittleFS only. Building with `BRIDGE_ENABLE_BLE 0` frees the BT IRAM and restores SD
+  and SDMMC. Other chips are unaffected.
 - **A long RMT capture or FS/OTA burst runs on the same task as Wi-Fi/NET**
   (`bridge_slow`): it can delay those replies — never GPIO/I2C/SPI/1-Wire,
   which run on the rx task. Conversely, a 1-Wire ROM search (~tens of ms)

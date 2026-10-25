@@ -4,7 +4,7 @@ Run it as a stdio MCP server (the default an MCP client launches):
 
     esplink-mcp                       # auto-detect the USB serial port
     esplink-mcp -p COM7               # a specific port
-    esplink-mcp -b                    # connect over Bluetooth (needs [ble])
+    esplink-mcp -b                    # connect over Bluetooth
     python -m esplink.mcp --transport http --port-num 8000
 
 Or embed it:
@@ -99,7 +99,7 @@ def _register_connection(mcp: FastMCP, mgr: BridgeManager) -> None:
     @mcp.tool
     @guarded
     def bridge_scan_ble(timeout: float = 5.0) -> list[dict]:
-        """Scan for bridges advertising over Bluetooth (needs the [ble] extra).
+        """Scan for bridges advertising over Bluetooth.
 
         Pass a board's "ident" to bridge_connect(name=...) — only one identity
         fits an advertisement, so a named board reports no mac and vice versa.

@@ -60,7 +60,7 @@ class Cap(enum.IntFlag):
     ETH = 1 << 18  # Ethernet (compile-time opt-in)
     CAM = 1 << 19  # camera (compile-time opt-in, needs PSRAM)
     MCPWM = 1 << 20  # complementary PWM pair with deadtime
-    SLEEP = 1 << 21  # deep/light sleep (IRAM-gated on classic+BLE)
+    SLEEP = 1 << 21  # deep/light sleep
     WIFI_LINK = 1 << 22  # bridge reachable over the Wi-Fi (TCP) transport
 
 

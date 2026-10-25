@@ -206,8 +206,7 @@ def _candidates(*, transport=None, port=None, host=None, tcp_port, name=None,
         except ImportError:
             if ble:
                 raise
-            log.debug("Bluetooth unavailable (pip install "
-                      "'esplink[ble]'); using USB serial")
+            log.debug("Bluetooth unavailable (pip install bleak); using USB serial")
     if not found and ble is None:
         # Nothing on a cable and nothing in radio range: the board may still be
         # on the network. Costs a one-second broadcast, and only here.
@@ -552,7 +551,13 @@ class Bridge:
         # settling time: measured on a CP210x DevKit, it answers nothing for the
         # first couple of seconds after the port opens, and polling sooner just
         # burns the retries.
-        if not self._ready.wait(3.0 if not reset_on_open else 1.5) and reset_on_open:
+        # Native USB (S3/C3/... USB-Serial-JTAG) is the exception: nothing reset
+        # the board, so there is no banner to wait for — ask right away — and
+        # DTR/RTS are its boot-strap and EN pins, so a reset pulse can park it in
+        # the ROM downloader. Never pulse those.
+        native = getattr(self._t, "usb_chip", None) == "native"
+        if (not native and not self._ready.wait(3.0 if not reset_on_open else 1.5)
+                and reset_on_open):
             self._t.pulse_reset()
             self._ready.wait(3.0)
 
@@ -933,13 +938,6 @@ class Bridge:
             raise ProtocolError("ping payload mismatch")
         return time.perf_counter() - t0
 
-    @property
-    def caps(self) -> C.Cap:
-        """The board's capability flags (a :class:`constants.Cap` bitset), e.g.
-        ``C.Cap.DAC in esp.caps``."""
-        assert self.info is not None
-        return self.info.caps
-
     def require(self, cap: C.Cap, what: str) -> None:
         """Raise :class:`UnsupportedError` if the board lacks ``cap``; ``what`` is
         the human name used in the message. Used by sub-APIs to fail clearly on
@@ -963,9 +961,6 @@ class Bridge:
         The link drops while asleep. Wake on a timer (`seconds`), a GPIO
         level (`wake_pin`/`wake_level`), or both. After a timer wake the
         board boots fresh — reconnect with a new Bridge() or `reset()` flow.
-
-        Not available on classic ESP32 when the BLE link is compiled in
-        (IRAM limit) — build with BRIDGE_ENABLE_BLE 0 to enable it there.
         """
         self.require(C.Cap.SLEEP, "sleep")
         self.request(C.SYS_SLEEP, self._sleep_args(0, seconds, wake_pin, wake_level))
@@ -973,7 +968,9 @@ class Bridge:
     def light_sleep(self, seconds: float = 0, *, wake_pin: int | None = None,
                     wake_level: int = 1) -> int:
         """Pause the ESP32 in light sleep; returns the wake cause (RAM and
-        the link survive; the reply arrives after wake-up)."""
+        the link survive; the reply arrives after wake-up). Not over native USB
+        (S3/C3 USB-Serial-JTAG): that peripheral powers down while asleep and
+        the host loses the port — use a BLE, Wi-Fi or USB-UART link."""
         self.require(C.Cap.SLEEP, "sleep")
         r = self.request(C.SYS_SLEEP, self._sleep_args(1, seconds, wake_pin, wake_level),
                          timeout=seconds + self.timeout)
@@ -1010,31 +1007,13 @@ class Bridge:
         if mode == "battery" and self.timeout < 5.0:
             self.timeout = 5.0  # RTT reaches ~1 s at latency 4; keep request margin
 
-    def power_mode(self, mode: str) -> dict:
-        """One-call power profile: "battery" = 80 MHz CPU + relaxed BLE link;
-        "performance" = 240 MHz + fast BLE link. Returns what was applied.
-
-        The BLE part is skipped silently on USB sessions. ESP-NOW receive duty
-        is its own (third) knob — see :meth:`espnow.EspNow.power_save`."""
-        if mode not in ("performance", "battery"):
-            raise ValueError(f"mode must be 'performance' or 'battery', got {mode!r}")
-        applied = {"cpu_mhz": self.cpu_freq(80 if mode == "battery" else 240)}
-        try:
-            self.link_power(mode)
-            applied["ble_link"] = mode
-        except RemoteError as e:
-            if e.status is not C.Status.NOT_INIT:  # NOT_INIT = no BLE central
-                raise
-            applied["ble_link"] = None
-        return applied
-
     def radio_off(self) -> None:
         """Full radio silence: Wi-Fi, ESP-NOW and the whole Bluetooth stack
         off — the quietest the chip gets, for jitter-sensitive realtime work
         over USB.
 
         What it sheds: every radio interrupt on core 0 (BT controller ticks,
-        Wi-Fi MAC), the Bluedroid + Wi-Fi driver scheduler load, and ~110 KB
+        Wi-Fi MAC), the BLE host + Wi-Fi driver scheduler load, and ~110 KB
         of heap comes back. ADC2 pins (GPIO 0/2/4/12-15/25-27 on a classic
         ESP32) become permanently readable — they are blocked whenever the
         Wi-Fi driver is up.

@@ -1,4 +1,4 @@
-"""AsyncBridge: await sub-API calls, fan out with gather, stream edge events."""
+"""AsyncBridge: await any call, overlap them with gather, stream events."""
 import asyncio
 import struct
 
@@ -6,6 +6,7 @@ import pytest
 
 from esplink import AsyncBridge
 from esplink import constants as C
+from esplink.gpio import EdgeEvent
 
 
 def _async(fw, scenario):
@@ -17,54 +18,41 @@ def _async(fw, scenario):
     asyncio.run(runner())
 
 
-def test_await_subapi_calls(fw):
+def test_await_methods_and_values(fw):
     async def scenario(esp):
         await esp.gpio.mode(2, "output")
-        assert await esp.gpio.write(2, 1) == 1   # write returns the read-back level
-        assert await esp.gpio.read(2) == 1
+        assert await esp.gpio.write(2, 1) == 1      # sub-API method
+        assert isinstance(await esp.ping(), float)   # Bridge method
+        assert C.Cap.WIFI in esp.info.caps           # plain value, no await
     _async(fw, scenario)
 
 
-def test_plain_attributes_pass_through(fw):
-    async def scenario(esp):
-        # info/caps are local — exposed directly, not as coroutines.
-        assert esp.info.chip.name
-        assert not asyncio.iscoroutine(esp.info)
-        assert C.Cap.WIFI in esp.caps
-    _async(fw, scenario)
-
-
-def test_bridge_method_awaitable(fw):
-    async def scenario(esp):
-        assert isinstance(await esp.ping(), float)
-        assert (await esp.free_heap())["free"] > 0
-    _async(fw, scenario)
-
-
-def test_gather_runs_concurrently(fw):
+def test_gather_overlaps_calls(fw):
     async def scenario(esp):
         await esp.gpio.mode(2, "output")
         await esp.gpio.write(2, 1)
-        # Many reads issued together; each runs in its own thread and the
-        # results come back correctly correlated by sequence number.
-        results = await asyncio.gather(*(esp.gpio.read(2) for _ in range(8)))
-        assert results == [1] * 8
+        assert await asyncio.gather(*(esp.gpio.read(2) for _ in range(8))) == [1] * 8
     _async(fw, scenario)
 
 
-def test_gpio_event_stream(fw):
+def test_event_stream_subscribes_before_first_await(fw):
     async def scenario(esp):
-        await esp.gpio.mode(4, "input_pullup")
-        await esp.gpio.watch(4, edge="falling", debounce_ms=30)
-        stream = esp.gpio_events()
-        fw.emit(C.GPIO_EDGE_EVT, bytes([4, 0]) + struct.pack(">I", 12345))
-        ev = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
-        assert ev.pin == 4 and ev.level == 0 and ev.millis == 12345
-        await stream.aclose()
+        stream = esp.events(C.GPIO_EDGE_EVT, EdgeEvent.parse)
+        fw.emit(C.GPIO_EDGE_EVT, bytes([4, 0]) + struct.pack(">I", 12345))  # before iterating
+        ev = await asyncio.wait_for(anext(stream), timeout=2.0)
+        assert (ev.pin, ev.level, ev.millis) == (4, 0, 12345)
+        await stream.aclose()                        # unsubscribes
     _async(fw, scenario)
 
 
-def test_not_connected_raises():
-    esp = AsyncBridge(ble=False)
+def test_wrap_shares_and_does_not_close(bridge):
+    async def scenario():
+        async with AsyncBridge.wrap(bridge) as esp:
+            assert await esp.free_heap()
+    asyncio.run(scenario())
+    assert bridge.ping() > 0                         # still open for its owner
+
+
+def test_not_connected_explains_itself():
     with pytest.raises(RuntimeError, match="not connected"):
-        esp.gpio  # noqa: B018 — sub-API access before connect() must explain itself
+        AsyncBridge(ble=False).gpio  # noqa: B018

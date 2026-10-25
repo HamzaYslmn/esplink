@@ -52,7 +52,10 @@ class SerialTransport:
         import serial
 
         self.usb_chip = usb_chip
-        if reset:
+        # Native USB-Serial-JTAG wires DTR/RTS straight to GPIO0 and EN: opening
+        # with them asserted holds the chip in reset and boots it into the ROM
+        # downloader, so those ports always open with both lines released.
+        if reset and usb_chip != "native":
             self.ser = serial.Serial(port, baudrate=baud, timeout=0.05,
                                      write_timeout=2.0)
             return

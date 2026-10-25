@@ -27,7 +27,7 @@ için Python tarafında uygulanır.
 
 ## Hızlı başlangıç
 
-*Raspberry Pi OS, Linux, Windows ve macOS üzerinde çalışır. Python ≥ 3.11
+*Raspberry Pi OS, Linux, Windows ve macOS üzerinde çalışır. Python ≥ 3.13
 gerekir.*
 
 1. **Firmware'i bir kez flash edin.** Arduino IDE şart değil; paketle gelen
@@ -63,8 +63,7 @@ gerekir.*
    uv pip install esplink         # ya da aktif ortama kurar
    ```
 
-   Bluetooth ek paket gerektirmeden çalışır. Eski `[ble]` ekstra seçeneği,
-   geriye dönük uyumluluk için etkisiz olarak korunur.
+   Bluetooth ek paket gerektirmeden çalışır.
 
 3. **Başlayın:**
 
@@ -406,18 +405,14 @@ OTA; firmware bu slotun yaklaşık %95'ini kullanır). OTA gerekmiyorsa
 ve Wi-Fi/BLE/ESP-NOW birlikte çalışma. Kullanılan soak/coex paketi için
 `python/examples/wireless/stress_test.py` dosyasına bakın.
 
-> **Bluetooth notu:** arduino-esp32 core 3.x, S3/C3/C6/H2 üzerinde NimBLE host
-> ile gelir. Bridge'in Bluetooth kodu (BLE bağlantısı + `esp.ble`) Bluedroid
-> konuştuğu için bu çiplerde firmware şu an yalnızca USB olarak derlenir.
-> Klasik ESP32 Bluedroid kullanmaya devam eder: tam BLE bağlantısı + Wi-Fi +
-> ESP-NOW birlikte çalışır.
+> **Bluetooth:** her çipte core'un kendi BLE kütüphanesi (klasik ESP32'de
+> Bluedroid, S3/C3/C6'da NimBLE) — BLE bağlantısı ve `esp.ble` hepsinde çalışır.
 
 > **Klasik ESP32 IRAM ödünü:** Wi-Fi ve Bluetooth birlikte yüklendiğinde çipin
-> instruction RAM'i dolar. Bu nedenle varsayılan klasik derleme SD kart
-> desteğini (LittleFS çalışmaya devam eder) ve deep/light sleep'i atlar.
-> SD + sleep'i geri almak için `BRIDGE_ENABLE_BLE 0` ile USB-only derleyin.
-> S2/S3/C3/C6/H2'de bu özellikler her durumda vardır. Python API iki durumda
-> da net bir `UnsupportedError` yükseltir (`Cap.SLEEP`, `Cap.SDMMC` sorguları).
+> instruction RAM'inde SD kart sürücülerine yer kalmaz; bu nedenle varsayılan
+> klasik derleme SD'yi atlar (LittleFS ve deep/light sleep çalışır). SD'yi geri
+> almak için `BRIDGE_ENABLE_BLE 0` ile USB-only derleyin. S2/S3/C3/C6/H2'de her
+> şey vardır. Python API net bir `UnsupportedError` yükseltir (`Cap.SDMMC`).
 
 ### Çip bazlı destek matrisi (v0.3.5 modülleri)
 
