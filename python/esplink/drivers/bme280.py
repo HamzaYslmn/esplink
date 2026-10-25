@@ -67,7 +67,6 @@ class BME280:
                                f"{self.chip_id:#04x} (expected 0x60 or 0x58)")
         self.has_humidity = self.chip_id == _CHIP_ID_BME280
 
-        self._t_fine = 0
         self._read_calibration()
         self._configure(osrs_t, osrs_p, osrs_h)
 
@@ -96,24 +95,11 @@ class BME280:
         tp = self._i2c.read_reg(self._addr, _REG_CALIB_TP, 26, self._bus)
         # Datasheet table 16 data types: T1 & P1 are unsigned short (u16 LE);
         # T2/T3 and P2..P9 are signed short (s16 LE); H1 is unsigned char.
-        self.dig_T1 = struct.unpack_from("<H", tp, 0)[0]
-        self.dig_T2 = struct.unpack_from("<h", tp, 2)[0]
-        self.dig_T3 = struct.unpack_from("<h", tp, 4)[0]
-        self.dig_P1 = struct.unpack_from("<H", tp, 6)[0]
-        self.dig_P2 = struct.unpack_from("<h", tp, 8)[0]
-        self.dig_P3 = struct.unpack_from("<h", tp, 10)[0]
-        self.dig_P4 = struct.unpack_from("<h", tp, 12)[0]
-        self.dig_P5 = struct.unpack_from("<h", tp, 14)[0]
-        self.dig_P6 = struct.unpack_from("<h", tp, 16)[0]
-        self.dig_P7 = struct.unpack_from("<h", tp, 18)[0]
-        self.dig_P8 = struct.unpack_from("<h", tp, 20)[0]
-        self.dig_P9 = struct.unpack_from("<h", tp, 22)[0]
+        (self.dig_T1, self.dig_T2, self.dig_T3, self.dig_P1, self.dig_P2, self.dig_P3,
+         self.dig_P4, self.dig_P5, self.dig_P6, self.dig_P7, self.dig_P8,
+         self.dig_P9) = struct.unpack_from("<HhhHhhhhhhhh", tp)
         self.dig_H1 = tp[25]
-
-        if not self.has_humidity:
-            # BMP280: no humidity trimming registers, leave them None.
-            self.dig_H2 = self.dig_H3 = self.dig_H4 = None
-            self.dig_H5 = self.dig_H6 = None
+        if not self.has_humidity:  # BMP280: no humidity trimming registers
             return
 
         # calib26..calib32 at 0xE1..0xE7 (7 bytes): dig_H2..H6.

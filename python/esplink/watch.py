@@ -108,15 +108,14 @@ class Watch:
 
     def __init__(self, bridge):
         self._b = bridge
-        self._cbs: dict[int, list] = {}
+        self._cbs: dict[int, Callable] = {}  # rule id -> its callback
         self._ids: set[int] = set()
         bridge.on_event(C.WATCH_EVT, self._on_event)
 
     def _on_event(self, payload: bytes) -> None:
         ev = WatchEvent.parse(payload)
-        if ev is None:
-            return
-        for cb in self._cbs.get(ev.id, ()):
+        cb = self._cbs.get(ev.id) if ev else None
+        if cb is not None:
             cb(ev)
 
     def _alloc_id(self) -> int:
@@ -134,7 +133,7 @@ class Watch:
             hysteresis: int = 0, period_ms: int = 100, atten: float = 11,
             on_enter: bool = True, on_exit: bool = True, initial: bool = False,
             do: tuple | None = None, undo: tuple | None = None,
-            callback: Callable | None = None, id: int | None = None) -> int:
+            callback: Callable | None = None) -> int:
         """Register a rule on the board; returns its id (use it to :meth:`remove`).
 
         source:    what to sample — not just analog:
@@ -162,9 +161,8 @@ class Watch:
                      ("gpio", pin, level)  — digital write (pin is made OUTPUT)
                      ("pwm",  pin, duty)   — LEDC duty; pwm.attach(pin) first
                    The action also runs for the very first sample (so an output
-                   pin reflects the rule's state from arm time), and needs
-                   bridge firmware >= 0.16.0. For change= rules only ``do``
-                   fires (there is no "cleared" state to undo).
+                   pin reflects the rule's state from arm time). For change=
+                   rules only ``do`` fires (there is no "cleared" state to undo).
         callback:  callback(WatchEvent), called on the event thread when it fires.
         """
         src = SOURCES[source] if isinstance(source, str) else int(source)
@@ -180,8 +178,7 @@ class Watch:
         (kind, val), = given.items()
         cmp, a, b = _CONDITIONS[kind](val, hysteresis)
 
-        if id is None:
-            id = self._alloc_id()
+        id = self._alloc_id()
         flags = ((_F_ENTER if on_enter else 0) | (_F_EXIT if on_exit else 0)
                  | (_F_INITIAL if initial else 0))
         aux = atten_code(atten) if src in (0, 1) else 0
@@ -194,7 +191,7 @@ class Watch:
         # its first event (e.g. initial=True) on the very next poll, which may
         # land before request() even returns — registering first avoids losing it.
         if callback is not None:
-            self._cbs.setdefault(id, []).append(callback)
+            self._cbs[id] = callback
         self._ids.add(id)
         try:
             self._b.request(C.WATCH_ADD2, body)
@@ -226,7 +223,3 @@ class Watch:
             pos += 6  # id u8 + state u8 + value i32
             out.append((wid, bool(state), value))
         return out
-
-    def on(self, id: int, callback) -> None:
-        """Add another callback for an existing rule id."""
-        self._cbs.setdefault(id, []).append(callback)

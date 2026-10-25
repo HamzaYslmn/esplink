@@ -17,30 +17,12 @@
 // ============================================================================
 // Nordic nRF52840 (Seeed XIAO / Adafruit Bluefruit core)
 // ----------------------------------------------------------------------------
-// Capability-gated subset: BLE transport + GPIO + ADC + PWM + I2C. This part
-// has no Wi-Fi/ESP-NOW radio and none of the ESP-IDF peripheral drivers, so
-// every other module compiles to an ST_UNSUPPORTED stub (src/nrf/mod_stubs.cpp)
-// and the host — which gates each feature on SYS_INFO.caps — never offers them.
+// Capability-gated subset (the caps in src/nrf/mod_sys.cpp). No Wi-Fi/ESP-NOW
+// radio and none of the ESP-IDF peripheral drivers, so those modules compile
+// to ST_UNSUPPORTED stubs (src/nrf/mod_stubs.cpp) and the host — which gates
+// each feature on SYS_INFO.caps — never offers them.
 // ============================================================================
 #define BRIDGE_CHIP        CHIP_NRF52840
-#define BRIDGE_HAS_DAC     0
-#define BRIDGE_HAS_TOUCH   0
-#define BRIDGE_HAS_BT_CLASSIC 0
-#define BRIDGE_HAS_BLE     1
-#define BRIDGE_HAS_ESPNOW  0
-#define BRIDGE_HAS_RMT     0
-#define BRIDGE_HAS_ONEWIRE 1   // bit-banged GPIO timing (portable)
-#define BRIDGE_HAS_FS      1   // LittleFS on internal flash (InternalFS); no SD
-#define BRIDGE_HAS_SD      0
-#define BRIDGE_HAS_SDMMC   0
-#define BRIDGE_HAS_SLEEP   1   // System OFF deep sleep with GPIO wake
-#define BRIDGE_HAS_NVS     1   // LittleFS-backed key/value store
-#define BRIDGE_HAS_OTA     0
-#define BRIDGE_HAS_TWAI    0
-#define BRIDGE_HAS_I2S     0
-#define BRIDGE_HAS_MCPWM   0
-#define BRIDGE_ETH         0
-#define BRIDGE_CAM         0
 
 // The Bluefruit BLE stack is always present on this core, so BRIDGE_BLE
 // tracks the opt-in alone.
@@ -49,10 +31,6 @@
 #else
 #define BRIDGE_BLE 0
 #endif
-
-// XIAO nRF52840 / Bluefruit Serial is native USB CDC — the baud argument is
-// ignored by the USB driver, exactly like the ESP native-USB parts.
-#define BRIDGE_NATIVE_USB 1
 
 // Single-core MCU: pin every bridge task to the one core. The pinned-core API
 // is ESP-only, so map it to the portable FreeRTOS xTaskCreate.
@@ -70,19 +48,19 @@
 #define SLOW_TASK_PRIO   2
 #define TX_TASK_STACK    1024   // words (~4 KB)
 #define RX_TASK_STACK    2048   // words (~8 KB) — holds the 256 B rx chunk + frame work
-#define SLOW_TASK_STACK  1024   // words (~4 KB) — slow handlers are all stubs here
+#define SLOW_TASK_STACK  1024   // words (~4 KB) — FS/NVS on LittleFS; the rest are stubs
 
 #else
 // ============================================================================
 // Espressif (arduino-esp32 3.x)
 // ============================================================================
+// Every supported Espressif chip has BLE, ESP-NOW, RMT, TWAI and I2S; only the
+// flags below differ. MCPWM/SDMMC come from SOC_* (soc_caps.h, via Arduino.h).
 #if defined(CONFIG_IDF_TARGET_ESP32)
   #define BRIDGE_CHIP        CHIP_ESP32
   #define BRIDGE_HAS_DAC     1
   #define BRIDGE_HAS_TOUCH   1
   #define BRIDGE_HAS_BT_CLASSIC 1
-  #define BRIDGE_HAS_BLE     1
-  #define BRIDGE_HAS_ESPNOW  1
   #define BRIDGE_SPI_HOST0   VSPI
   #define BRIDGE_SPI_HOST1   HSPI
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -90,8 +68,6 @@
   #define BRIDGE_HAS_DAC     0
   #define BRIDGE_HAS_TOUCH   1
   #define BRIDGE_HAS_BT_CLASSIC 0
-  #define BRIDGE_HAS_BLE     1
-  #define BRIDGE_HAS_ESPNOW  1
   #define BRIDGE_SPI_HOST0   FSPI
   #define BRIDGE_SPI_HOST1   HSPI
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
@@ -99,21 +75,12 @@
   #define BRIDGE_HAS_DAC     0
   #define BRIDGE_HAS_TOUCH   0
   #define BRIDGE_HAS_BT_CLASSIC 0
-  #define BRIDGE_HAS_BLE     1
-  #define BRIDGE_HAS_ESPNOW  1
   #define BRIDGE_SPI_HOST0   FSPI
   #define BRIDGE_SPI_HOST1   FSPI
 #else
   #error "esplink supports ESP32, ESP32-S3, ESP32-C3 and nRF52840"
 #endif
 
-// ---- v0.3.0 modules ---------------------------------------------------------
-// The primitives below are present on every supported chip.
-// Chip-specific peripherals are gated by SOC_* macros from soc_caps.h
-// (pulled in transitively by Arduino.h).
-#define BRIDGE_HAS_RMT     1   // pulse-train play/capture
-#define BRIDGE_HAS_ONEWIRE 1   // bit-banged 1-Wire timing primitives
-#define BRIDGE_HAS_FS      1   // LittleFS always; SD depends on IRAM (below)
 // Classic ESP32 with Wi-Fi + BLE: the SD-SPI and SDMMC drivers' IRAM-resident
 // ISRs overflow iram0_0_seg; sleep alone fits (measured, core 3.3.12).
 // BRIDGE_ENABLE_BLE 0 frees the room and brings SD back.
@@ -127,19 +94,6 @@
 #else
   #define BRIDGE_HAS_SDMMC 0
 #endif
-#define BRIDGE_HAS_SLEEP   1   // deep/light sleep
-#define BRIDGE_HAS_NVS     1   // key/value store
-#define BRIDGE_HAS_OTA     1   // firmware update over the link
-#ifdef SOC_TWAI_SUPPORTED
-  #define BRIDGE_HAS_TWAI  1
-#else
-  #define BRIDGE_HAS_TWAI  0
-#endif
-#ifdef SOC_I2S_SUPPORTED
-  #define BRIDGE_HAS_I2S   1
-#else
-  #define BRIDGE_HAS_I2S   0
-#endif
 #ifdef SOC_MCPWM_SUPPORTED  // esp32/s3 — NOT c3
   #define BRIDGE_HAS_MCPWM 1
 #else
@@ -149,7 +103,7 @@
 // Heavy optional modules, off by default. Enable with -DBRIDGE_ENABLE_ETH=1 or
 // -DBRIDGE_ENABLE_CAM=1 at build time.
 //   ETH requires a PHY chip: RMII on classic ESP32, or W5500/DM9051 over SPI on any chip.
-//   CAM requires an OV-series sensor + PSRAM; supported on esp32/s2/s3 only.
+//   CAM requires an OV-series sensor + PSRAM; ESP32/S3 only.
 #ifndef BRIDGE_ENABLE_ETH
 #define BRIDGE_ENABLE_ETH 0
 #endif
@@ -170,7 +124,7 @@
 // The core's BLE library builds on whichever host the chip's IDF ships —
 // Bluedroid on the classic ESP32, NimBLE on S3/C3 — so every chip with a
 // BLE radio gets the link (same guard as the library itself).
-#if BRIDGE_ENABLE_BLE && BRIDGE_HAS_BLE && defined(SOC_BLE_SUPPORTED) && \
+#if BRIDGE_ENABLE_BLE && defined(SOC_BLE_SUPPORTED) && \
     (defined(CONFIG_BLUEDROID_ENABLED) || defined(CONFIG_NIMBLE_ENABLED))
   #define BRIDGE_BLE 1
 #else
@@ -182,6 +136,19 @@
   #define BRIDGE_NATIVE_USB 1
 #else
   #define BRIDGE_NATIVE_USB 0
+#endif
+
+// S3 devkits put UART0 on a second USB port (CH343/CP2102 bridge), so on S3
+// both wired ports are links: same protocol, no auth, like the classic chip.
+// LINK_UART is the UART link's port wherever there is one.
+#if BRIDGE_NATIVE_USB && defined(CONFIG_IDF_TARGET_ESP32S3)
+  #define BRIDGE_UART0_LINK 1
+  #define LINK_UART Serial0
+#else
+  #define BRIDGE_UART0_LINK 0
+  #if !BRIDGE_NATIVE_USB
+    #define LINK_UART Serial
+  #endif
 #endif
 
 // ---- task layout ------------------------------------------------------------
@@ -237,21 +204,18 @@
 // PRIO/STACK are #ifndef-guarded so the nRF branch (above) can set values that
 // fit its FreeRTOS (smaller priority range, stack depth counted in words). On
 // ESP these take the original byte-counted defaults.
-#define TX_TASK_CORE     CORE_RADIO
 #ifndef TX_TASK_PRIO
 #define TX_TASK_PRIO     12
 #endif
 #ifndef TX_TASK_STACK
 #define TX_TASK_STACK    4096
 #endif
-#define RX_TASK_CORE     CORE_APP
 #ifndef RX_TASK_PRIO
 #define RX_TASK_PRIO     10
 #endif
 #ifndef RX_TASK_STACK
 #define RX_TASK_STACK    8192
 #endif
-#define SLOW_TASK_CORE   CORE_RADIO
 #ifndef SLOW_TASK_PRIO
 #define SLOW_TASK_PRIO   9
 #endif
@@ -269,7 +233,8 @@
 // 80 ms I2C scan) blocks rx_task: the host caps in-flight bytes at 6400, and the
 // ring holds that plus one frame so it can't overflow (errors counted, SYS_FREE_HEAP).
 // TX ring is small on purpose — tx_task's cursor refills it every ~1 ms, so it
-// only bridges wake-up latency, not whole frames.
+// only bridges wake-up latency, not whole frames. (2112 B on S3 native USB,
+// holding a whole frame: measured no gain on a 2 KB echo or FS read.)
 #define SERIAL_RX_BUF  8704
 #define SERIAL_TX_BUF  1024
 
@@ -279,18 +244,13 @@
 // link — Wi-Fi + BLE + ESP-NOW together fits (~4 KB min free in a 30 s soak), but
 // large transfers fail cleanly with NO_MEM while that thin. Ops on an already-
 // running driver (scan/connect/softAP) cost only ~4-8 KB → the smaller WARM margin,
-// which is what lets a BLE session run Wi-Fi + ESP-NOW. All overridable (-D).
+// which is what lets a BLE session run Wi-Fi + ESP-NOW. The UP/REUP margins
+// apply to whichever user (STA/AP/ESP-NOW) brings the driver up. All -D overridable.
 #ifndef WIFI_UP_BLE_MIN_HEAP
 #define WIFI_UP_BLE_MIN_HEAP     58000
 #endif
 #ifndef WIFI_REUP_BLE_MIN_HEAP
 #define WIFI_REUP_BLE_MIN_HEAP   39000
-#endif
-#ifndef ESPNOW_UP_BLE_MIN_HEAP
-#define ESPNOW_UP_BLE_MIN_HEAP   58000
-#endif
-#ifndef ESPNOW_REUP_BLE_MIN_HEAP
-#define ESPNOW_REUP_BLE_MIN_HEAP 39000
 #endif
 #ifndef RADIO_WARM_BLE_MIN_HEAP
 #define RADIO_WARM_BLE_MIN_HEAP  8000

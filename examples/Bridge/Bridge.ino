@@ -5,8 +5,8 @@
  *
  * IMPORTANT: The Wi-Fi + BLE build is too large for the default 1.2 MB
  * partition table.  Before flashing, go to Tools > Partition Scheme and pick:
- *   "Huge APP (3MB No OTA)"               — recommended default
- *   "Minimal SPIFFS (1.9MB APP with OTA)" — if you need OTA firmware updates
+ *   "Minimal SPIFFS (1.9MB APP with OTA)" — what sketch.yaml builds; keeps OTA
+ *   "Huge APP (3MB No OTA)"               — if ETH/CAM push it past 1.9 MB
  *
  * Example usage from the host PC:
  *   from esplink import Bridge

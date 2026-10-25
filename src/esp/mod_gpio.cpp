@@ -30,6 +30,7 @@ static void IRAM_ATTR gpio_edge_isr(void* arg) {
   EdgeRaw e = { pin, (uint8_t)digitalRead(pin), (uint32_t)esp_timer_get_time() };
   BaseType_t hpw = pdFALSE;
   xQueueSendFromISR(edgeq, &e, &hpw);
+  proto_rx_kick_from_isr(&hpw);  // report it now, not on rx_task's next 1 ms poll
   if (hpw) portYIELD_FROM_ISR();
 }
 
@@ -41,7 +42,6 @@ void gpio_init() {
 void gpio_poll() {
   EdgeRaw e;
   while (xQueueReceive(edgeq, &e, 0) == pdTRUE) {
-    if (e.pin >= SOC_GPIO_PIN_COUNT) continue;
     uint16_t db = debounce_ms[e.pin];
     if (db && (uint32_t)(e.us - last_edge_us[e.pin]) < db * 1000u) continue;
     last_edge_us[e.pin] = e.us;
@@ -98,7 +98,7 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       NEED(16);
       uint64_t mask = ((uint64_t)read_be32(p) << 32) | read_be32(p + 4);
       uint64_t vals = ((uint64_t)read_be32(p + 8) << 32) | read_be32(p + 12);
-      for (uint8_t pin = 0; pin < SOC_GPIO_PIN_COUNT && pin < 64; pin++)
+      for (uint8_t pin = 0; pin < SOC_GPIO_PIN_COUNT; pin++)
         if ((mask >> pin) & 1 && is_valid_pin(pin))
           digitalWrite(pin, ((vals >> pin) & 1) ? HIGH : LOW);
       proto_reply_ok(seq, cmd);
@@ -107,7 +107,7 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
 
     case 0x05: {  // READ_ALL -> levels u64
       uint64_t levels = 0;
-      for (uint8_t pin = 0; pin < SOC_GPIO_PIN_COUNT && pin < 64; pin++)
+      for (uint8_t pin = 0; pin < SOC_GPIO_PIN_COUNT; pin++)
         if (is_valid_pin(pin) && digitalRead(pin)) levels |= (1ULL << pin);
       uint8_t buf[8];
       write_be32(buf, (uint32_t)(levels >> 32));
@@ -142,9 +142,6 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       NEED(1);
       uint8_t pin = p[0];
       if (!is_valid_pin(pin)) { proto_reply_err(seq, cmd, ST_BAD_PIN); return; }
-      // Returns a full snapshot from the chip: the live pad level, the mode last
-      // set via SET_MODE, and the LEDC (PWM) channel state (freq 0 = no PWM on
-      // this pin).
       uint8_t buf[10];
       buf[0] = (uint8_t)digitalRead(pin);
       buf[1] = pin_mode[pin];

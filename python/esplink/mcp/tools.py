@@ -31,7 +31,6 @@ SKIP = {
     "nvs": {"set", "get"},             # polymorphic value -> typed variants below
     "espnow": {"on_receive", "on_send_result", "read"},
     "can": {"on_message"},
-    "watch": {"on"},
     "camera": {"capture"},             # returns an image -> composite below
     "rmt": {"recv"},                   # blocks for a capture window
     "fs": {"mount"},                   # returns a Volume -> fs_* below
@@ -370,16 +369,9 @@ def _register_composites(mcp, mgr) -> None:
     @guarded
     def camera_capture():
         """Capture one JPEG frame and return it as an image."""
-        jpeg = mgr.bridge().camera.capture()
-        try:
-            from fastmcp.utilities.types import Image
+        from fastmcp.utilities.types import Image
 
-            return Image(data=jpeg, format="jpeg")
-        except (ImportError, AttributeError):
-            import base64
-
-            return {"format": "jpeg", "size": len(jpeg),
-                    "base64": base64.b64encode(jpeg).decode()}
+        return Image(data=mgr.bridge().camera.capture(), format="jpeg")
 
     @mcp.tool
     @guarded

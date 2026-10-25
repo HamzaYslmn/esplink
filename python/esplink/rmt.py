@@ -37,9 +37,8 @@ def _bit_sym(pair: tuple[Symbol, Symbol]) -> int:
 
 
 class Rmt:
-    """RMT pulse-train transmit/capture (reached via ``esp.rmt``).
+    """RMT pulse-train transmit/capture (``esp.rmt``).
 
-        esp = esplink.connect()
         esp.rmt.init_tx(pin=18, tick_hz=1_000_000)   # 1 tick = 1 us
         esp.rmt.tx(18, [(1, 10), (0, 20), (1, 10)])  # high/low/high pulses
         esp.rmt.deinit(18)

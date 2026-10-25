@@ -80,16 +80,6 @@ class MPU6050:
         return {"ax": ax, "ay": ay, "az": az, "temp": temp,
                 "gx": gx, "gy": gy, "gz": gz}
 
-    def _decode(self, r: dict) -> tuple[tuple[float, float, float],
-                                        tuple[float, float, float], float]:
-        """Convert one raw-sample dict into (accel_g, gyro_dps, temp_C)."""
-        a = self._accel_scale
-        g = self._gyro_scale
-        accel = (r["ax"] / a, r["ay"] / a, r["az"] / a)
-        gyro = (r["gx"] / g, r["gy"] / g, r["gz"] / g)
-        temp = r["temp"] / 340.0 + 36.53
-        return accel, gyro, temp
-
     def read_all(self) -> tuple[tuple[float, float, float],
                                 tuple[float, float, float], float]:
         """Read everything from ONE 14-byte burst -> (accel, gyro, temp).
@@ -97,16 +87,19 @@ class MPU6050:
         ``accel`` is (x, y, z) in g, ``gyro`` is (x, y, z) in deg/s, ``temp`` is
         the die temperature in °C. A single burst keeps all channels coherent.
         """
-        return self._decode(self.read_raw())
+        r, a, g = self.read_raw(), self._accel_scale, self._gyro_scale
+        return ((r["ax"] / a, r["ay"] / a, r["az"] / a),
+                (r["gx"] / g, r["gy"] / g, r["gz"] / g),
+                r["temp"] / 340.0 + 36.53)
 
     def read_accel(self) -> tuple[float, float, float]:
         """Acceleration (x, y, z) in g (raw / accel_scale)."""
-        return self._decode(self.read_raw())[0]
+        return self.read_all()[0]
 
     def read_gyro(self) -> tuple[float, float, float]:
         """Angular rate (x, y, z) in deg/s (raw / gyro_scale)."""
-        return self._decode(self.read_raw())[1]
+        return self.read_all()[1]
 
     def read_temp(self) -> float:
         """Die temperature in °C: raw/340 + 36.53 (datasheet formula)."""
-        return self._decode(self.read_raw())[2]
+        return self.read_all()[2]

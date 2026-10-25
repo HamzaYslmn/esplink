@@ -16,16 +16,30 @@ from . import constants as C
 from .errors import BridgeError, BridgeTimeoutError
 from .protocol import ip_str, lp
 
-# Maximum bytes sent in a single NET_SEND request. This caps how long the
-# firmware's synchronous socket write can block, and keeps each request
-# comfortably under MAX_PAYLOAD.
-_SEND_CHUNK = 1024
-
-
+_SEND_CHUNK = 1024  # bounds how long one firmware socket write blocks
 _UNSET = object()
 
 
-class TcpSocket:
+class _Handle:
+    """A socket handle on the firmware; closes on ``with`` exit."""
+
+    def __init__(self, net: Net, handle: int):
+        self._net, self._b, self.handle = net, net._b, handle
+
+    def close(self) -> None:
+        """Close the socket and release its handle."""
+        with contextlib.suppress(BridgeError):
+            self._b.request(C.NET_CLOSE, bytes([self.handle]))
+        self._net._forget(self.handle)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+class TcpSocket(_Handle):
     """A TCP connection proxied through the ESP32 — stdlib socket-like.
 
     Obtained from ``esp.net.tcp_connect()`` or ``TcpServer.accept()``.
@@ -34,14 +48,10 @@ class TcpSocket:
         >>> sock.send(b"GET / HTTP/1.0\\r\\n\\r\\n")
         >>> data = sock.recv()          # b'' on peer close
         >>> sock.close()
-
-    Usable as a context manager (closes on exit).
     """
 
     def __init__(self, net: Net, handle: int, peer: tuple[str, int] | None = None):
-        self._net = net
-        self._b = net._b
-        self.handle = handle
+        super().__init__(net, handle)
         self.peer = peer
         self._buf = bytearray()
         self._cond = threading.Condition()
@@ -56,8 +66,6 @@ class TcpSocket:
         """Current default recv() timeout in seconds (None = blocking)."""
         return self._timeout
 
-    # Called from the reader thread to append incoming data and wake any
-    # waiting recv() call.
     def _feed(self, data: bytes) -> None:
         with self._cond:
             self._buf += data
@@ -124,31 +132,21 @@ class TcpSocket:
         """Close the connection and release its handle (idempotent)."""
         if self._open:
             self._open = False
-            with contextlib.suppress(BridgeError):
-                self._b.request(C.NET_CLOSE, bytes([self.handle]))
+            super().close()
         self._net._forget(self.handle)
 
-    def __enter__(self):
-        return self
 
-    def __exit__(self, *exc):
-        self.close()
-
-
-class TcpServer:
+class TcpServer(_Handle):
     """A listening TCP socket on the ESP32 — returned by ``esp.net.tcp_listen()``.
 
         >>> srv = esp.net.tcp_listen(8080)
         >>> conn = srv.accept()             # blocks for an incoming TcpSocket
         >>> conn.send(conn.recv())          # echo one chunk
         >>> conn.close(); srv.close()
-
-    Usable as a context manager (closes on exit).
     """
 
     def __init__(self, net: Net, handle: int, port: int):
-        self._net = net
-        self.handle = handle
+        super().__init__(net, handle)
         self.port = port
         self._accepted: queue.Queue[TcpSocket] = queue.Queue()
 
@@ -163,20 +161,8 @@ class TcpServer:
         except queue.Empty:
             raise BridgeTimeoutError("no incoming connection") from None
 
-    def close(self) -> None:
-        """Stop listening and release the server handle."""
-        with contextlib.suppress(BridgeError):
-            self._net._b.request(C.NET_CLOSE, bytes([self.handle]))
-        self._net._forget(self.handle)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
-
-
-class UdpSocket:
+class UdpSocket(_Handle):
     """A UDP socket proxied through the ESP32 — returned by ``esp.net.udp()``.
 
         >>> sock = esp.net.udp(5000)                 # bind local port 5000
@@ -184,14 +170,11 @@ class UdpSocket:
         >>> data, addr = sock.recvfrom(timeout=2.0)
         >>> sock.close()
 
-    Usable as a context manager (closes on exit). Datagrams are dropped
-    silently if the receive queue fills up (connectionless semantics).
+    Datagrams are dropped silently if the receive queue fills up.
     """
 
     def __init__(self, net: Net, handle: int, local_port: int):
-        self._net = net
-        self._b = net._b
-        self.handle = handle
+        super().__init__(net, handle)
         self.local_port = local_port
         self._timeout: float | None = None
         self._packets: queue.Queue[tuple[bytes, tuple[str, int]]] = queue.Queue(maxsize=256)
@@ -208,7 +191,7 @@ class UdpSocket:
         try:
             self._packets.put_nowait((data, addr))
         except queue.Full:
-            pass  # UDP is connectionless: silently drop when the queue is full
+            pass
 
     def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
         """Send one datagram to (ip, port); raises ValueError if too large."""
@@ -230,18 +213,6 @@ class UdpSocket:
             return self._packets.get(timeout=timeout)
         except queue.Empty:
             raise BridgeTimeoutError("no datagram received") from None
-
-    def close(self) -> None:
-        """Close the UDP socket and release its handle."""
-        with contextlib.suppress(BridgeError):
-            self._b.request(C.NET_CLOSE, bytes([self.handle]))
-        self._net._forget(self.handle)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        self.close()
 
 
 class Net:

@@ -17,14 +17,11 @@ from .errors import ProtocolError
 _HDR = struct.Struct(">BBH")
 
 # ---- CRC-16/CCITT-FALSE ------------------------------------------------------
-# binascii.crc_hqx implements the CCITT algorithm (poly 0x1021, no reflection)
-# in C. Seeded with 0xFFFF it is bit-identical to CRC-16/CCITT-FALSE — verified
-# against the old pure-Python table loop and the firmware's crc16_ccitt.
-# About 15x faster than a pure-Python per-byte loop on the hot path.
-# Accepts any buffer-protocol object (bytes, bytearray, memoryview).
 
 
 def crc16_ccitt(data) -> int:
+    # crc_hqx is CCITT (poly 0x1021, no reflection) in C; seeded with 0xFFFF it
+    # is CRC-16/CCITT-FALSE, bit-identical to the firmware's crc16_ccitt.
     return binascii.crc_hqx(data, 0xFFFF)
 
 
@@ -113,8 +110,6 @@ def encode_frame(flags: int, seq: int, cmd: int, payload: bytes = b"") -> bytes:
     plen = len(payload)
     if plen > MAX_PAYLOAD:
         raise ProtocolError(f"payload too large: {plen} > {MAX_PAYLOAD}")
-    # Assemble header + payload + CRC into a single buffer instead of chaining
-    # bytes concatenations — reduces three intermediate copies to zero.
     logical = bytearray(4 + plen + 2)
     _HDR.pack_into(logical, 0, flags, seq, cmd)
     logical[4:4 + plen] = payload
@@ -140,8 +135,7 @@ CHUNK = MAX_PAYLOAD - 8  # max blob bytes per request (leaves room for header + 
 
 
 def chunks(data, size: int = CHUNK):
-    """Yield ``data`` in ``size``-byte slices — the splitting loop the blob write
-    paths (fs/i2s/ota) share."""
+    """Yield ``data`` in ``size``-byte slices (the fs/i2s/ota write paths)."""
     for i in range(0, len(data), size):
         yield data[i:i + size]
 
@@ -181,7 +175,7 @@ class FrameSplitter:
 
     def __init__(self) -> None:
         self._buf = bytearray()
-        self._pos = 0  # index of the first unconsumed byte — avoids an O(n) left-shift after every frame
+        self._pos = 0  # first unconsumed byte: no O(n) left-shift per frame
 
     def feed(self, data: bytes) -> list[bytes]:
         """Add raw bytes; return the list of complete COBS chunks now available
@@ -196,14 +190,7 @@ class FrameSplitter:
             if i > self._pos:
                 chunks.append(bytes(buf[self._pos:i]))
             self._pos = i + 1
-        # Reclaim consumed bytes in amortized batches rather than after every frame,
-        # so the left-shift cost is O(1) amortized instead of O(n) per frame.
-        if self._pos > 4096:
+        if self._pos > 4096:  # reclaim consumed bytes in amortized batches
             del buf[: self._pos]
             self._pos = 0
         return chunks
-
-    def reset(self) -> None:
-        """Discard any buffered partial frame (e.g. after a reconnect)."""
-        self._buf.clear()
-        self._pos = 0

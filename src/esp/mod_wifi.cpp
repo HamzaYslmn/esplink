@@ -231,7 +231,7 @@ void wifi_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       link_tcp_stop();
       break;
 
-    case 0x0A: {  // LINK_STATUS -> state u8|ip[4]|port u16|peer u8|rx_dropped u32
+    case 0x0A: {  // LINK_STATUS -> state u8|ip[4]|port u16|peer u8|tx_errors u32
       uint8_t buf[12];
       buf[0] = link_tcp_state();
       uint32_t ip = link_tcp_ip();

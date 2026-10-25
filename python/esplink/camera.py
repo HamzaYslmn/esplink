@@ -39,14 +39,7 @@ PRESETS: dict[str, list[int]] = {
 }
 
 class Camera:
-    """JPEG snapshots from OV-series sensors (reached via ``esp.camera``).
-
-        esp = esplink.connect()
-        esp.camera.begin("ai-thinker")            # ESP32-CAM board
-        jpeg = esp.camera.capture()               # bytes, ready to save
-        open("shot.jpg", "wb").write(jpeg)
-        esp.camera.end()
-    """
+    """JPEG snapshots from OV-series sensors (``esp.camera``; see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

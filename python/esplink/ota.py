@@ -20,12 +20,7 @@ from .protocol import chunks
 
 
 class Ota:
-    """Over-the-air firmware updates over the protocol link.
-
-        esp.ota.flash("Bridge.ino.bin",
-                      progress=lambda done, total: print(f"{done}/{total}"))
-        esp.ota.abort()   # cancel an in-progress flash
-    """
+    """Over-the-air firmware updates over the protocol link (see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

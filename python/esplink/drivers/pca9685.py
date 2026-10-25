@@ -60,7 +60,6 @@ class PCA9685:
             raise ValueError(f"PCA9685 address {address:#04x} out of range "
                              f"(0x40-0x7F)")
         self._i2c, self._addr, self._bus = bind_i2c(bridge, address, bus=bus, sda=sda, scl=scl)
-        self._freq = 0
         # Enable auto-increment and wake (clear SLEEP) so multi-byte LED writes
         # land in consecutive registers.
         self._i2c.write_reg(self._addr, _MODE1, _AI, self._bus)

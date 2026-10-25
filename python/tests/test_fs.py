@@ -23,6 +23,17 @@ def test_large_file_chunks(bridge):
     assert vol.read_file("/big.bin") == data
 
 
+def test_pipelined_reads_follow_the_cursor(bridge):
+    from esplink.protocol import CHUNK
+    vol = bridge.fs.mount("littlefs")
+    data = bytes(range(256)) * (3 * CHUNK // 256 + 1)   # several chunks in flight at once
+    vol.write_file("/p.bin", data)
+    with vol.open("/p.bin") as f:
+        assert f.read(10) == data[:10]
+        assert f.read() == data[10:]          # the rest, pipelined
+        assert f.read() == b""
+
+
 def test_append_and_seek(bridge):
     vol = bridge.fs.mount("littlefs")
     vol.write_file("/log.txt", b"one")

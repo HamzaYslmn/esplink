@@ -13,11 +13,6 @@ def pwm_bits(freq: float) -> int:
     return max(1, min(14, (16_000_000 // max(1, int(freq))).bit_length() - 1))
 
 
-def _full_scale(res_bits: int) -> int:
-    """Largest raw LEDC duty count for a given resolution (2**res_bits - 1)."""
-    return (1 << res_bits) - 1
-
-
 class Pwm:
     """PWM output via the LEDC peripheral, plus servo/tone helpers.
 
@@ -32,9 +27,11 @@ class Pwm:
 
     def attach(self, pin: int, freq: int = 1000, resolution_bits: int | None = None) -> None:
         """Start a PWM channel on a pin at `freq` Hz. Resolution defaults to 10 bits
-        (duty 0..1023), or the finest that fits when `freq` is too high for 10."""
+        (duty 0..1023): fewer when `freq` is too high for 10, more below ~76 Hz,
+        where 10 bits would need an LEDC clock divider past its 1023 maximum."""
         if resolution_bits is None:
-            resolution_bits = min(10, pwm_bits(freq))
+            resolution_bits = max((80_000_000 // 1023 // max(1, int(freq))).bit_length(),
+                                  min(10, pwm_bits(freq)))
         self._b.request(C.PWM_ATTACH, struct.pack(">BIB", pin, freq, resolution_bits))
         self._attached[pin] = (freq, resolution_bits)
 
@@ -47,7 +44,7 @@ class Pwm:
         if pin not in self._attached:
             self.attach(pin)
         _, res = self._attached[pin]
-        self.write(pin, round(_full_scale(res) * max(0.0, min(100.0, percent)) / 100.0))
+        self.write(pin, round(((1 << res) - 1) * max(0.0, min(100.0, percent)) / 100.0))
 
     def detach(self, pin: int) -> None:
         """Stop PWM on a pin and free its LEDC channel."""
@@ -63,4 +60,4 @@ class Pwm:
         if self._attached.get(pin) != (50, 14):  # servo needs 50 Hz, 14-bit resolution
             self.attach(pin, 50, 14)
         us = min_us + (max_us - min_us) * max(0.0, min(180.0, angle)) / 180.0
-        self.write(pin, round(us / 20000.0 * _full_scale(14)))
+        self.write(pin, round(us / 20000.0 * ((1 << 14) - 1)))

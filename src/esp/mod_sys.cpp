@@ -30,40 +30,21 @@ const char* sys_device_name() {
   return bridge_name;
 }
 
-uint16_t sys_build_info(uint8_t* out) {
-  uint8_t* p = out;
-  *p++ = PROTOCOL_VERSION;
-  *p++ = FW_VERSION_MAJOR;
-  *p++ = FW_VERSION_MINOR;
-  *p++ = FW_VERSION_PATCH;
-  *p++ = BRIDGE_CHIP;
+uint8_t* sys_info_body(uint8_t* p) {
   *p++ = (uint8_t)ESP.getChipRevision();
+  esp_read_mac(p, ESP_MAC_WIFI_STA); p += 6;
 
-  uint8_t mac[6] = {0};
-  esp_read_mac(mac, ESP_MAC_WIFI_STA);
-  memcpy(p, mac, 6); p += 6;
-
-  // Every BRIDGE_* flag is defined to 0 or 1 by config.h (never left undefined),
-  // so this folds at compile time exactly like the #if-per-capability ladder it
-  // replaces — and reads as the flag -> bit table it actually is.
-  uint32_t caps = CAP_WIFI
+  // Every supported chip has these; the CAPIF flags (0/1, folded at compile
+  // time) are the ones that differ per chip or build.
+  uint32_t caps = CAP_WIFI | CAP_ESPNOW | CAP_RMT | CAP_ONEWIRE
+      | CAP_TWAI | CAP_I2S | CAP_FS | CAP_NVS | CAP_OTA | CAP_SLEEP
       | CAPIF(BRIDGE_HAS_DAC,     CAP_DAC)
       | CAPIF(BRIDGE_HAS_TOUCH,   CAP_TOUCH)
       | CAPIF(BRIDGE_HAS_BT_CLASSIC, CAP_BT_CLASSIC)
-      | CAPIF(BRIDGE_HAS_BLE,     CAP_BLE)
       | CAPIF(BRIDGE_BLE,         CAP_BLE_FW)
       | CAPIF(BRIDGE_NATIVE_USB,  CAP_NATIVE_USB)
-      | CAPIF(BRIDGE_HAS_ESPNOW,  CAP_ESPNOW)
-      | CAPIF(BRIDGE_HAS_RMT,     CAP_RMT)
-      | CAPIF(BRIDGE_HAS_ONEWIRE, CAP_ONEWIRE)
-      | CAPIF(BRIDGE_HAS_TWAI,    CAP_TWAI)
-      | CAPIF(BRIDGE_HAS_I2S,     CAP_I2S)
-      | CAPIF(BRIDGE_HAS_FS,      CAP_FS)
-      | CAPIF(BRIDGE_HAS_NVS,     CAP_NVS)
-      | CAPIF(BRIDGE_HAS_OTA,     CAP_OTA)
       | CAPIF(BRIDGE_ETH,         CAP_ETH)
       | CAPIF(BRIDGE_HAS_MCPWM,   CAP_MCPWM)
-      | CAPIF(BRIDGE_HAS_SLEEP,   CAP_SLEEP)
       | CAPIF(BRIDGE_WIFI_LINK,   CAP_WIFI_LINK);  // built in; LINK_STATUS says if it runs
   // Runtime, not build-time: PSRAM presence and whether the BLE link came up.
   if (psramFound()) caps |= CAP_PSRAM | CAPIF(BRIDGE_CAM, CAP_CAM);  // cam needs PSRAM
@@ -72,13 +53,7 @@ uint16_t sys_build_info(uint8_t* out) {
 
   *p++ = SOC_GPIO_PIN_COUNT;
   *p++ = (uint8_t)(ESP.getFlashChipSize() / (1024UL * 1024UL));
-
-  // Name as the tail, unlength-prefixed: the frame already carries the length,
-  // so "the rest of the payload" needs no byte of its own.
-  load_device_name();
-  uint8_t nlen = strlen(bridge_name);
-  memcpy(p, bridge_name, nlen); p += nlen;
-  return p - out;
+  return p;
 }
 
 void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
@@ -97,15 +72,18 @@ void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
     case 0x03: {  // SET_BAUD
       NEED(4);
       uint32_t baud = read_be32(p);
-#if BRIDGE_NATIVE_USB
+#if BRIDGE_UART0_LINK
+      if (!proto_wired_on_uart0()) { proto_reply_ok(seq, cmd); break; }  // host on native USB: no baud
+#elif BRIDGE_NATIVE_USB
       (void)baud;
       proto_reply_ok(seq, cmd);  // Native USB CDC ignores the baud rate entirely — acknowledge without acting
-#else
+#endif
+#ifdef LINK_UART
       if (baud < 9600 || baud > 3000000) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       proto_reply_ok(seq, cmd);  // send the ACK at the current (old) baud rate...
       proto_tx_flush();          // ...and make sure it's fully transmitted before we switch
       delay(20);                 // give the host's UART time to drain and re-lock at the new rate
-      Serial.updateBaudRate(baud);
+      LINK_UART.updateBaudRate(baud);
 #endif
       break;
     }
@@ -130,7 +108,6 @@ void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       break;
     }
 
-#if BRIDGE_HAS_SLEEP
     case 0x08: {  // SLEEP: mode u8 (0=deep, 1=light) | us u64 | wake_pin i8 | wake_level u8
       NEED(11);
       uint8_t mode = p[0];
@@ -168,15 +145,7 @@ void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       }
       break;
     }
-#else
-    case 0x08:  // SLEEP disabled: sleep entry code must be IRAM-resident, which conflicts with classic BT + BLE builds
-      proto_reply_err(seq, cmd, ST_UNSUPPORTED);
-      break;
-#endif
 
-    // WAKE_CAUSE is always available regardless of the BRIDGE_HAS_SLEEP gate.
-    // Reading the wakeup cause is a cheap RTC register read that requires no IRAM-resident sleep code,
-    // so it is safe even in classic BT + BLE builds where sleep entry is disabled.
     case 0x09: {  // WAKE_CAUSE -> cause u8 (0 = normal power-on/reset)
       uint8_t cause = (uint8_t)esp_sleep_get_wakeup_cause();
       proto_reply(seq, cmd, &cause, 1);

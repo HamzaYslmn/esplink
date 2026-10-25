@@ -2,8 +2,7 @@
 // defines that this part/firmware does not implement still needs its handler
 // symbol to satisfy the dispatcher in protocol.cpp; each replies ST_UNSUPPORTED
 // (the host gates on SYS_INFO.caps and never sends these anyway). The pollers
-// and wifi_init() are no-ops. The real nRF52 handlers (SYS/GPIO/ADC/PWM/I2C)
-// and the BLE link live in their own files.
+// and wifi_init() are no-ops.
 #if defined(ARDUINO_ARCH_NRF52)
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
@@ -23,7 +22,6 @@ UNSUPPORTED_STUB(mcpwm_handle,   MOD_MCPWM)
 UNSUPPORTED_STUB(watch_handle,   MOD_WATCH)
 
 // Pollers (called every loop on rx_task / slow_task) — nothing to service.
-// (uart_poll lives in mod_uart.cpp now.)
 void wifi_init() {}
 void wifi_poll() {}
 void net_poll() {}

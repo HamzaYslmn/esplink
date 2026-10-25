@@ -23,15 +23,7 @@ BROADCAST = "ff:ff:ff:ff:ff:ff"
 
 
 class EspNow:
-    """Connectionless ESP-NOW peer/broadcast messaging, reached as ``esp.espnow``.
-
-        >>> esp = esplink.connect()
-        >>> esp.espnow.begin()                          # returns this board's MAC
-        >>> esp.espnow.add_peer("a0:b1:c2:d3:e4:f5")
-        >>> esp.espnow.send("a0:b1:c2:d3:e4:f5", b"hi")  # True when the peer ACKs
-        >>> esp.espnow.broadcast(b"hello everyone")
-        >>> esp.espnow.on_receive(lambda mac, data, rssi: print(mac, data, rssi))
-    """
+    """Connectionless ESP-NOW peer/broadcast messaging (``esp.espnow``; see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge
@@ -42,22 +34,16 @@ class EspNow:
         bridge.on_event(C.ESPNOW_RX_EVT, self._on_rx)
         bridge.on_event(C.ESPNOW_SEND_EVT, self._on_send_result)
 
-    # ---- events ---------------------------------------------------------------
-
     def _on_rx(self, p: bytes) -> None:
         if len(p) < 7:
             return
         mac = mac_to_str(p[:6])
         rssi = int.from_bytes(p[6:7], "big", signed=True)
         data = p[7:]
-        if self._rx_callbacks:
-            # Callback mode: deliver directly and skip the queue.
-            # If we also queued, the queue would grow unbounded because
-            # nothing would drain it.
+        if self._rx_callbacks:  # callbacks replace the queue: nothing would drain it
             for cb in list(self._rx_callbacks):
                 cb(mac, data, rssi)
         else:
-            # Polled mode: buffer the packet so available()/read() can retrieve it.
             self._rx_queue.put_nowait((mac, data, rssi))
 
     def _on_send_result(self, p: bytes) -> None:
@@ -79,8 +65,6 @@ class EspNow:
         """callback(mac: str, delivered: bool) for send(..., wait=False) results."""
         self._send_callbacks.append(callback)
 
-    # ---- polled alternative to on_receive ---------------------------------------
-
     def available(self) -> int:
         """Number of received packets waiting in the queue."""
         return self._rx_queue.qsize()
@@ -91,8 +75,6 @@ class EspNow:
             return self._rx_queue.get(timeout=timeout)
         except queue.Empty:
             raise BridgeTimeoutError("no ESP-NOW packet received") from None
-
-    # ---- commands ----------------------------------------------------------------
 
     def begin(self, channel: int = 0, *, long_range: bool = False) -> str:
         """Start ESP-NOW; returns this board's MAC address (give it to peers).

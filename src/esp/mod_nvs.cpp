@@ -3,9 +3,6 @@
 // Values are stored as raw bytes; the host is responsible for encoding/decoding typed data.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_NVS
-
 #include <Preferences.h>
 #include <nvs.h>
 
@@ -80,10 +77,4 @@ void nvs_handle_cmd(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   }
   prefs.end();
 }
-
-#else
-
-UNSUPPORTED_STUB(nvs_handle_cmd, MOD_NVS)
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

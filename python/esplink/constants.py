@@ -14,7 +14,6 @@ PROTOCOL_VERSION = 2
 # COBS-encoded on the wire, frames delimited by 0x00.
 FLAG_EVENT = 0x01
 FLAG_ERROR = 0x02
-FLAG_MORE = 0x04
 
 MAX_PAYLOAD = 2048
 NET_CHUNK = 512
@@ -41,11 +40,9 @@ class Status(enum.IntEnum):
 
 class Cap(enum.IntFlag):
     WIFI = 1 << 0
-    BLE = 1 << 1
     BT_CLASSIC = 1 << 2
     DAC = 1 << 3
     TOUCH = 1 << 4
-    HALL = 1 << 5
     PSRAM = 1 << 6
     NATIVE_USB = 1 << 7
     BLE_FW = 1 << 8
@@ -304,10 +301,8 @@ OTA_WRITE = _cmd(MOD_OTA, 0x02)
 OTA_END = _cmd(MOD_OTA, 0x03)
 OTA_ABORT = _cmd(MOD_OTA, 0x04)
 
-# Use the full payload for each OTA chunk (previously 1024 bytes), which halves
-# the number of round-trips per MB. The firmware's OTA_WRITE handler passes
-# whatever arrives directly to esp_ota_write, so the only ceiling is MAX_PAYLOAD;
-# subtracting 8 leaves room for the frame header and CRC.
+# The firmware hands each OTA_WRITE straight to esp_ota_write, so the only
+# ceiling is MAX_PAYLOAD (minus room for the header and CRC).
 OTA_CHUNK = MAX_PAYLOAD - 8
 
 # CAM
@@ -370,7 +365,6 @@ def cmd_name(cmd: int) -> str:
     return f"{name} (0x{cmd:04X})" if name else f"0x{cmd:04X}"
 
 
-# USB-UART bridge chips found on ESP32 dev boards: (vid, pid) -> chip
 class Pins(NamedTuple):
     """A board's default pins (``esp.pins``): what an ``init()`` uses when you
     pass none. From each board's Arduino variant (pins_arduino.h); every one can
@@ -397,10 +391,12 @@ PINS = {
 }
 
 
+# USB-UART bridge chips found on ESP32 dev boards: (vid, pid) -> chip
 KNOWN_USB_IDS = {
     (0x10C4, 0xEA60): "cp210x",   # CP2102/CP2104 (most DevKitC)
     (0x1A86, 0x7523): "ch340",    # CH340
     (0x1A86, 0x55D4): "ch9102",   # CH9102 (CH340 successor)
+    (0x1A86, 0x55D3): "ch343",    # CH343 (ESP32-S3 DevKitC UART port)
     (0x303A, None): "native",     # Espressif native USB (S3/C3)
     (0x239A, None): "native",     # Adafruit nRF52 bootloader family (TinyUSB CDC)
 }
@@ -421,6 +417,7 @@ UPGRADE_BAUD = {
     "cp210x": 1500000,
     "ch340": 2000000,
     "ch9102": 1500000,
+    "ch343": 1500000,
     "native": None,  # USB CDC ignores baud
     None: 921600,
 }

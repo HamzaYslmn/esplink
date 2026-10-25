@@ -56,6 +56,8 @@ _GET_RX_BUFFER_STATUS = 0x17
 _SET_DIO_IRQ_PARAMS = 0x8D
 _GET_IRQ_STATUS = 0x15        # SX1280: 0x15  (SX126x uses 0x12)
 _CLR_IRQ_STATUS = 0x97        # SX1280: 0x97  (SX126x uses 0x02)
+_WRITE_REGISTER = 0x18
+_READ_REGISTER = 0x19
 
 # --- Constants ----------------------------------------------------------------
 _STDBY_RC = 0x00              # SetStandby arg: internal RC oscillator
@@ -66,9 +68,6 @@ _RAMP_20US = 0xE0             # SetTxParams ramp time code (datasheet §11.7.3)
 _XTAL_HZ = 52_000_000
 _FREQ_DIV = 2 ** 18           # freq_reg = round(freq * 2**18 / 52e6)
 
-# LoRa spreading factor codes: SF lives in the HIGH nibble (SF5..SF12 -> 0x50..0xC0).
-_SF_MIN, _SF_MAX = 5, 12
-
 # LoRa bandwidth -> SetModulationParams code (datasheet §11.7.7). These are
 # SX1280-specific and unrelated to the SX126x BW codes.
 _BW_CODES = {
@@ -78,13 +77,21 @@ _BW_CODES = {
     200_000: 0x34,
 }
 
-# LoRa coding rate index 1..7 -> code (4/5..4/8, then long-interleave 4/5..4/7).
-_CR_MIN, _CR_MAX = 1, 7
+# After SetModulationParams(LoRa) the datasheet (§14.4.1) requires register
+# 0x925 = 0x1E (SF5/6), 0x37 (SF7/8) or 0x32 (SF9-12), and bit 0 of 0x93C set
+# (frequency-error compensation).
+_REG_LORA_SF_CONFIG = 0x0925
+_REG_FREQ_ERROR_CORRECTION = 0x093C
+
+# LoRa preamble length is one byte, (exponent << 4) | mantissa, length =
+# mantissa * 2**exponent (§14.4.2): 12 symbols = 6 * 2**1.
+_PREAMBLE_12 = (1 << 4) | 6
 
 # IRQ bit masks (datasheet §11.9, Table "IRQ register").
 _IRQ_TX_DONE = 0x0001
 _IRQ_RX_DONE = 0x0002
 _IRQ_RX_TX_TIMEOUT = 0x4000
+_IRQ_HEADER_ERROR = 0x0020
 _IRQ_CRC_ERROR = 0x0040
 _IRQ_ALL = 0xFFFF
 
@@ -105,27 +112,21 @@ class SX128x:
             raise ValueError(f"freq {freq} Hz out of SX1280 ISM band (2.400-2.500 GHz)")
         if not (-18 <= tx_power <= 13):
             raise ValueError(f"tx_power {tx_power} dBm out of range (-18..+13)")
-        if not (_SF_MIN <= sf <= _SF_MAX):
-            raise ValueError(f"sf {sf} out of range ({_SF_MIN}..{_SF_MAX})")
+        if not (5 <= sf <= 12):
+            raise ValueError(f"sf {sf} out of range (5..12)")
         if bw not in _BW_CODES:
             raise ValueError(f"bw {bw} Hz invalid; choose one of {sorted(_BW_CODES)}")
-        if not (_CR_MIN <= cr <= _CR_MAX):
-            raise ValueError(f"cr {cr} out of range ({_CR_MIN}..{_CR_MAX})")
+        if not (1 <= cr <= 7):  # 4/5..4/8, then long-interleave 4/5..4/7
+            raise ValueError(f"cr {cr} out of range (1..7)")
 
         self._b = bridge
         self._cs = cs
         self._reset = reset
         self._busy = busy
         self._dio1 = dio1
-        self._freq = freq
-        self._tx_power = tx_power
-        self._sf = sf
-        self._bw = bw
-        self._cr = cr
-        self._preamble = 12      # LoRa preamble symbols
 
         if init_spi:  # pins left out are the board's (esp.pins)
-            self._b.spi.init(freq=spi_freq, mode=0, msb_first=True, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
+            self._b.spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq, mode=0)
 
         gpio = self._b.gpio
         gpio.mode(reset, "output")
@@ -138,12 +139,23 @@ class SX128x:
         self._command(_SET_PACKET_TYPE, _PACKET_TYPE_LORA)  # SetPacketType(LoRa)
         self._apply_frequency(freq)                         # SetRfFrequency
         self._command(_SET_BUFFER_BASE, 0x00, 0x00)         # SetBufferBaseAddress(tx=0, rx=0)
-        self._apply_modulation()                            # SetModulationParams
+        # SetModulationParams(LoRa): SF in the high nibble, BW code, CR code.
+        self._command(_SET_MODULATION_PARAMS, (sf << 4) & 0xF0, _BW_CODES[bw], cr)
+        sf_cfg = 0x1E if sf <= 6 else 0x37 if sf <= 8 else 0x32
+        self._write_register(_REG_LORA_SF_CONFIG, sf_cfg)
+        fec = self._read_command(_READ_REGISTER, 1, *_REG_FREQ_ERROR_CORRECTION.to_bytes(2, "big"))
+        self._write_register(_REG_FREQ_ERROR_CORRECTION, fec[0] | 0x01)
         self._apply_packet_params(0)                        # SetPacketParams (payload set per-send)
-        self._apply_tx_params()                             # SetTxParams
-        # Route TxDone | RxDone | RxTxTimeout to the IRQ register and to DIO1.
-        self._set_dio_irq_params(_IRQ_TX_DONE | _IRQ_RX_DONE | _IRQ_RX_TX_TIMEOUT,
-                                 _IRQ_TX_DONE | _IRQ_RX_DONE | _IRQ_RX_TX_TIMEOUT)
+        # SetTxParams: power code = dBm + 18 (0..31 for -18..+13 dBm), ramp time.
+        self._command(_SET_TX_PARAMS, tx_power + 18, _RAMP_20US)
+        # SetDioIrqParams: enable TxDone | RxDone | RxTxTimeout | header/CRC
+        # errors in the IRQ register (a masked IRQ never sets its bit, so a bad
+        # CRC would otherwise read as a good packet); route the done/timeout
+        # ones to DIO1 (16-bit BE masks; DIO2/DIO3 unused).
+        dio1 = _IRQ_TX_DONE | _IRQ_RX_DONE | _IRQ_RX_TX_TIMEOUT
+        mask = dio1 | _IRQ_HEADER_ERROR | _IRQ_CRC_ERROR
+        self._command(_SET_DIO_IRQ_PARAMS, mask >> 8, mask & 0xFF, dio1 >> 8, dio1 & 0xFF,
+                      0x00, 0x00, 0x00, 0x00)
 
     # --- low-level command plumbing ------------------------------------------
     def _wait_busy(self) -> None:
@@ -167,6 +179,9 @@ class SX128x:
         rx = self._b.spi.transfer(tx, cs=self._cs)
         return rx[len(args) + 2:]
 
+    def _write_register(self, addr: int, value: int) -> None:
+        self._command(_WRITE_REGISTER, addr >> 8, addr & 0xFF, value)
+
     def _reset_chip(self) -> None:
         """Active-low RESET pulse, then wait for BUSY to settle."""
         gpio = self._b.gpio
@@ -182,28 +197,12 @@ class SX128x:
         self._command(_SET_RF_FREQUENCY,
                       (reg >> 16) & 0xFF, (reg >> 8) & 0xFF, reg & 0xFF)
 
-    def _apply_modulation(self) -> None:
-        # SetModulationParams(LoRa): p1=SF (high nibble), p2=BW code, p3=CR code.
-        self._command(_SET_MODULATION_PARAMS,
-                      (self._sf << 4) & 0xF0, _BW_CODES[self._bw], self._cr)
-
     def _apply_packet_params(self, payload_len: int) -> None:
-        # SetPacketParams(LoRa): preamble hi/lo, header(0x00 explicit),
-        # payload len, CRC(0x20 on), InvertIQ(0x40 standard), + 2 reserved bytes.
-        self._command(_SET_PACKET_PARAMS,
-                      (self._preamble >> 8) & 0xFF, self._preamble & 0xFF,
-                      0x00, payload_len & 0xFF, 0x20, 0x40, 0x00)
-
-    def _apply_tx_params(self) -> None:
-        # SetTxParams: power as raw signed value (-18..+13 dBm), ramp time code.
-        self._command(_SET_TX_PARAMS, self._tx_power & 0xFF, _RAMP_20US)
-
-    def _set_dio_irq_params(self, irq_mask: int, dio1_mask: int) -> None:
-        # SetDioIrqParams: IRQ mask, DIO1 mask, DIO2 mask(0), DIO3 mask(0) — 16-bit BE.
-        self._command(_SET_DIO_IRQ_PARAMS,
-                      (irq_mask >> 8) & 0xFF, irq_mask & 0xFF,
-                      (dio1_mask >> 8) & 0xFF, dio1_mask & 0xFF,
-                      0x00, 0x00, 0x00, 0x00)
+        # SetPacketParams(LoRa), 7 params (§14.4.2): preamble (one exp/mant
+        # byte), explicit header (0x00), payload len, CRC on (0x20), standard
+        # IQ (0x40), two reserved.
+        self._command(_SET_PACKET_PARAMS, _PREAMBLE_12, 0x00, payload_len & 0xFF,
+                      0x20, 0x40, 0x00, 0x00)
 
     def _get_irq_status(self) -> int:
         r = self._read_command(_GET_IRQ_STATUS, 2)
@@ -218,7 +217,6 @@ class SX128x:
         if not (2_400_000_000 <= hz <= 2_500_000_000):
             raise ValueError(f"freq {hz} Hz out of SX1280 ISM band (2.400-2.500 GHz)")
         self.standby()
-        self._freq = hz
         self._apply_frequency(hz)
 
     def standby(self) -> None:
@@ -227,8 +225,8 @@ class SX128x:
 
     def sleep(self) -> None:
         """Put the radio to sleep (config retained: data buffer + RAM kept)."""
-        # SetSleep config 0x05 = retain data buffer and instruction RAM.
-        self._command(_SET_SLEEP, 0x05)
+        # SetSleep config: bit1 = retain data buffer, bit0 = retain data RAM.
+        self._command(_SET_SLEEP, 0x03)
 
     def send(self, data) -> None:
         """Transmit a LoRa packet and block until TxDone (or BUSY/IRQ timeout)."""
@@ -258,7 +256,8 @@ class SX128x:
         except TimeoutError:
             self.standby()
             return None
-        if irq & (_IRQ_RX_TX_TIMEOUT | _IRQ_CRC_ERROR) or not (irq & _IRQ_RX_DONE):
+        bad = _IRQ_RX_TX_TIMEOUT | _IRQ_HEADER_ERROR | _IRQ_CRC_ERROR
+        if irq & bad or not (irq & _IRQ_RX_DONE):
             self._clear_irq_status()
             return None
         self._clear_irq_status()

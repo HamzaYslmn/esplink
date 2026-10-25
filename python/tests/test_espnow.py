@@ -180,7 +180,7 @@ def test_read_timeout(bridge):
 # ---- capability gate ------------------------------------------------------------------
 
 def test_unsupported_without_cap(monkeypatch):
-    monkeypatch.setattr(fake_firmware, "CAPS", C.Cap.WIFI | C.Cap.BLE)
+    monkeypatch.setattr(fake_firmware, "CAPS", C.Cap.WIFI | C.Cap.BLE_FW)
     fake = FakeFirmware()
     fake.boot()
     b = Bridge(transport=fake.transport, upgrade_baud=False, reset_on_open=False)

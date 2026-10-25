@@ -23,13 +23,10 @@ bool radio_acquire(uint8_t user) {
   // USB-only sessions are never guarded. All three radios CAN run at once;
   // the tiers just keep the BLE link alive while they come up.
   uint32_t need;
-  if (WiFi.getMode() == WIFI_MODE_NULL) {
-    need = (user == RADIO_ESPNOW)
-        ? (driver_resident ? ESPNOW_REUP_BLE_MIN_HEAP : ESPNOW_UP_BLE_MIN_HEAP)
-        : (driver_resident ? WIFI_REUP_BLE_MIN_HEAP   : WIFI_UP_BLE_MIN_HEAP);
-  } else {
+  if (WiFi.getMode() == WIFI_MODE_NULL)
+    need = driver_resident ? WIFI_REUP_BLE_MIN_HEAP : WIFI_UP_BLE_MIN_HEAP;
+  else
     need = (user == RADIO_ESPNOW) ? 0 : RADIO_WARM_BLE_MIN_HEAP;
-  }
   if (need && link_ble_authed() && ESP.getFreeHeap() < need) return false;
   driver_resident = true;  // every successful caller proceeds to raise the radio
   users |= user;

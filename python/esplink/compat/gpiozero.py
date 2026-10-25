@@ -22,7 +22,7 @@ Supported: input/output, pull-up/down, edge detection with debounce
 drive other pins), PWM at any frequency (``PWMLED``, ``Servo``, ``Motor``),
 and SPI devices (``MCP3008`` & co) on the ESP32's SPI host::
 
-    adc = MCP3008(channel=0, pin_factory=factory)   # SCK 18, MOSI 23, MISO 19, CS 5
+    adc = MCP3008(channel=0, pin_factory=factory)   # the board's SPI pins and CS
     adc = MCP3008(channel=0, select_pin=27, pin_factory=factory)
 """
 from __future__ import annotations
@@ -91,15 +91,7 @@ class EspLinkPin(Pin):
         if value not in ("input", "output"):
             raise PinInvalidFunction(f"invalid function {value!r} for {self!r}")
         self._function = value
-        if value == "input":
-            self._gpio.mode(self._n, _PULL_MODES[self._pull])
-        else:
-            self._gpio.mode(self._n, "output")
-
-    def output_with_state(self, state):
-        self._function = "output"
-        self._gpio.mode(self._n, "output")
-        self._set_state(state)
+        self._gpio.mode(self._n, _PULL_MODES[self._pull] if value == "input" else "output")
 
     def input_with_pull(self, pull):
         self._pull = pull
@@ -214,10 +206,6 @@ class EspLinkFactory(Factory):
         self._board_info = _board_info(gpio_count, chip)
 
     def _get_board_info(self):
-        return self._board_info
-
-    @property
-    def board_info(self):
         return self._board_info
 
     def _info(self, name) -> PinInfo:

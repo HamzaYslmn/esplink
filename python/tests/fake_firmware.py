@@ -15,7 +15,7 @@ from esplink import constants as C
 from esplink.protocol import FrameSplitter, decode_frame, encode_frame
 from esplink.transports import MockTransport
 
-CAPS = (C.Cap.WIFI | C.Cap.BLE | C.Cap.BLE_FW | C.Cap.DAC | C.Cap.TOUCH | C.Cap.ESPNOW
+CAPS = (C.Cap.WIFI | C.Cap.BLE_FW | C.Cap.DAC | C.Cap.TOUCH | C.Cap.ESPNOW
         | C.Cap.RMT | C.Cap.ONEWIRE | C.Cap.TWAI | C.Cap.I2S | C.Cap.FS | C.Cap.NVS
         | C.Cap.OTA | C.Cap.ETH | C.Cap.CAM | C.Cap.MCPWM | C.Cap.SLEEP)
 

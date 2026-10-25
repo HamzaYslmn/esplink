@@ -2,7 +2,7 @@
 
 The firmware advertises a Nordic-UART-style GATT service (see firmware
 link_ble.cpp); this transport carries the exact same COBS frame stream over
-it. Requires the `bleak` package: ``pip install bleak``.
+it, via bleak.
 
 bleak is asyncio-based; a private event loop runs in a daemon thread so the
 transport exposes the same blocking read()/write() interface as the serial
@@ -14,7 +14,7 @@ import asyncio
 import contextlib
 import queue
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .._log import log
 from ..constants import BLE_LINK_RX_UUID, BLE_LINK_SERVICE_UUID, BLE_LINK_TX_UUID
@@ -34,6 +34,9 @@ class BleDeviceInfo:
     advertised: str  # the raw advertised name, "esplink_<identity>"
     address: str     # MAC on Windows/Linux, CoreBluetooth UUID on macOS
     rssi: int
+    # bleak's BLEDevice from the scan: connecting with it, not the address
+    # string, spares WinRT a second scan for the same board (~0.6 s, measured)
+    device: object = field(default=None, compare=False, repr=False)
 
     @property
     def _advertised_identity(self) -> str:
@@ -71,16 +74,6 @@ class BleDeviceInfo:
         return self.name or self.mac
 
 
-def _require_bleak():
-    try:
-        import bleak  # noqa: F401 — importing IS the availability probe
-    except ImportError:
-        raise BridgeError(
-            "the Bluetooth transport needs the 'bleak' package — "
-            "install with: pip install bleak"
-        ) from None
-
-
 def _scan(coro_fn):
     """Run a bleak scan, turning an unusable adapter into a NoDeviceError.
 
@@ -89,7 +82,7 @@ def _scan(coro_fn):
     NoDeviceError is also what lets the default transport order fall through to
     USB serial on a machine with no Bluetooth at all (see bridge._candidates).
     """
-    from bleak.exc import BleakError   # callers checked bleak is installed
+    from bleak.exc import BleakError
 
     try:
         return asyncio.run(coro_fn())
@@ -99,7 +92,6 @@ def _scan(coro_fn):
 
 def find_ble_devices(timeout: float = 5.0) -> list[BleDeviceInfo]:
     """Scan for bridges advertising the BLE link service."""
-    _require_bleak()
     from bleak import BleakScanner
 
     async def _run():
@@ -108,7 +100,7 @@ def find_ble_devices(timeout: float = 5.0) -> list[BleDeviceInfo]:
             service_uuids=[BLE_LINK_SERVICE_UUID],
         )
         return [
-            BleDeviceInfo(dev.name or "", dev.address, adv.rssi)
+            BleDeviceInfo(dev.name or "", dev.address, adv.rssi, dev)
             for dev, adv in found.values()
         ]
 
@@ -126,14 +118,13 @@ def find_ble_devices_fast(match=None, *, settle: float = 0.4,
     BleDeviceInfo. Returns the matches found (strongest RSSI first), or [] if
     none appeared within `timeout`.
     """
-    _require_bleak()
     from bleak import BleakScanner
 
     async def _run():
         seen: dict[str, BleDeviceInfo] = {}
 
         def _cb(dev, adv):
-            info = BleDeviceInfo(dev.name or "", dev.address, adv.rssi)
+            info = BleDeviceInfo(dev.name or "", dev.address, adv.rssi, dev)
             if match is not None and not match(info):
                 return
             seen[dev.address] = info
@@ -174,17 +165,15 @@ class BleTransport:
     # the slow BLE notify reply-path can't drain it fast enough.
     max_inflight = 4300
 
-    def __init__(self, address: str, *, connect_timeout: float = 10.0):
-        _require_bleak()
+    def __init__(self, address: str, *, device=None, connect_timeout: float = 10.0):
         self.address = address
+        self._device = device
         self._rx: queue.Queue = queue.Queue()
         self._closed = False
-        self._chunk_size = 20  # write-without-response size; grows after MTU exchange
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever,
                                         daemon=True, name="esplink-ble")
         self._thread.start()
-        self._client = None
         try:
             self._run(self._connect(address, connect_timeout), connect_timeout + 5)
         except BaseException:
@@ -214,7 +203,7 @@ class BleTransport:
         from bleak import BleakClient
         from bleak.exc import BleakError
 
-        client = BleakClient(address, timeout=timeout)
+        client = BleakClient(self._device or address, timeout=timeout)
         try:
             await client.connect()
             await client.start_notify(BLE_LINK_TX_UUID, self._on_notify)
@@ -234,26 +223,20 @@ class BleTransport:
         else:
             log.warning("BLE MTU exchange did not complete; writes will be "
                         "chunked at 20 bytes (slow link)")
-        # Cache the negotiated chunk size: stable once the MTU exchange lands,
-        # so per-write attribute reads are unnecessary.
-        # ...capped at 512: no attribute value may exceed that (Core spec, ATT).
-        # Bluedroid lets MTU-3 = 514 through; NimBLE (S3/C3) drops the write.
+        # Cached: stable once the MTU exchange lands. Capped at 512, the ATT
+        # attribute maximum: Bluedroid lets MTU-3 = 514 through, NimBLE (S3/C3)
+        # drops such a write.
         self._chunk_size = min(512, max(20, self._rx_char.max_write_without_response_size))
 
     def _on_notify(self, _char, data: bytearray) -> None:
         self._rx.put(bytes(data))
 
     async def _write(self, data: bytes) -> None:
-        chunk = self._chunk_size  # cached at connect; no per-write attribute read
+        chunk = self._chunk_size
         mv = memoryview(data)     # zero-copy chunk slices
         for i in range(0, len(data), chunk):
             await self._client.write_gatt_char(
                 self._rx_char, mv[i : i + chunk], response=False)
-
-    async def _disconnect(self) -> None:
-        if self._client is not None:
-            with contextlib.suppress(Exception):
-                await self._client.disconnect()
 
     def read(self) -> bytes:
         # Block until a notification lands (or close() injects the sentinel) —
@@ -264,21 +247,13 @@ class BleTransport:
     def write(self, data: bytes) -> None:
         self._run(self._write(data), timeout=10.0)
 
-    def set_baudrate(self, baud: int) -> None:
-        pass  # wireless
-
-    def pulse_reset(self) -> None:
-        pass  # no DTR/RTS lines over the air
-
     def _stop_loop(self) -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
         self._thread.join(timeout=2.0)
 
     def close(self) -> None:
         self._rx.put(_RX_SHUTDOWN)  # wake the reader thread blocked in read()
-        try:
-            self._run(self._disconnect(), timeout=5.0)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            self._run(self._client.disconnect(), timeout=5.0)
         self._closed = True         # after the disconnect, which goes via _run
         self._stop_loop()

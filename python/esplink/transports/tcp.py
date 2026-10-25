@@ -64,10 +64,7 @@ class TcpTransport:
         sock.settimeout(None)
 
     def read(self) -> bytes:
-        try:
-            data = self.sock.recv(4096)
-        except TimeoutError:
-            return b""
+        data = self.sock.recv(4096)
         if not data:
             # Raise on a clean close: returning b"" would spin Bridge's reader
             # loop instead of declaring the link down.
@@ -76,12 +73,6 @@ class TcpTransport:
 
     def write(self, data: bytes) -> None:
         self.sock.sendall(data)
-
-    def set_baudrate(self, baud: int) -> None:
-        pass  # networked link
-
-    def pulse_reset(self) -> None:
-        pass  # no DTR/RTS over a socket
 
     def close(self) -> None:
         with contextlib.suppress(OSError):   # already-dead socket
@@ -195,7 +186,7 @@ def find_wifi_devices(timeout: float = 1.0,
 
 
 def _local_ipv4s() -> list[str]:
-    """Every IPv4 address this host owns, loopback last (it can't reach boards)."""
+    """Every IPv4 address this host owns, minus loopback (it can't reach boards)."""
     addrs = set()
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):

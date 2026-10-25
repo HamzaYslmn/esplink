@@ -1,6 +1,6 @@
 {
   "name": "@hamzayslmn/esplink",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Drive every ESP32 peripheral from JavaScript over USB serial, Bluetooth or Wi-Fi — in the browser (Web Serial / Web Bluetooth) or Node.",
   "type": "module",
   "exports": {

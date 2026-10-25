@@ -9,10 +9,9 @@
 // interprets as an end-of-frame marker.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_RMT
-
 #include <esp32-hal-rmt.h>
+#include <esp32-hal-periman.h>
+#include <driver/rmt_tx.h>
 
 struct RmtChan {
   int8_t pin = -1;
@@ -57,23 +56,6 @@ static size_t symbols_to_words(const uint8_t* p, uint16_t nsyms, rmt_data_t* out
   }
   if (nsyms & 1) w++;
   return w;
-}
-
-// Build one rmt_data_t hardware word from a packed bit-symbol descriptor.
-// The descriptor is a u32: high 16 bits are the '0'-bit symbol, low 16 bits are
-// the '1'-bit symbol, each in the same level<<15|duration format as wire symbols.
-static rmt_data_t bit_to_word(uint32_t v) {
-  rmt_data_t d;
-  d.val = 0;
-  d.duration0 = (v >> 16) & 0x7FFF;
-  d.level0 = (v >> 31) & 1;
-  d.duration1 = v & 0x7FFF;
-  d.level1 = (v >> 15) & 1;
-  return d;
-}
-
-static uint32_t tx_timeout_ms(const RmtChan* c, uint32_t ticks) {
-  return ticks / (c->tick_hz / 1000) + 50;  // converts tick count to ms, plus 50 ms slack; tick_hz >= 1000 guaranteed by INIT validation
 }
 
 // Transmit without parking slow_task for the whole train. A blocking rmtWrite
@@ -123,45 +105,46 @@ static void do_tx(RmtChan* c, uint8_t seq, uint16_t cmd,
   }
 }
 
-// Expand data bytes (MSB-first) to per-bit RMT symbols and transmit.
-// Fast path: allocate one contiguous buffer for all bits and call rmtWrite once —
-// fully gapless, required for WS2812 and similar protocols.
-// Fallback (heap allocation failed): write in 256-word chunks via a static staging
-// buffer. This adds a few-microsecond gap at each chunk boundary, which is
-// acceptable for IR but can corrupt WS2812 frames.
-#define RMT_STAGE_WORDS 256
+// The HAL keeps its IDF channel private: it is the first member of the per-pin
+// bus object (struct rmt_obj_s, esp32-hal-rmt.c, core 3.x), which is what the
+// peripheral manager hands back for an RMT TX pin.
+static rmt_channel_handle_t idf_tx_channel(int8_t pin) {
+  void* bus = perimanGetPinBus(pin, ESP32_BUS_TYPE_RMT_TX);
+  return bus ? *(rmt_channel_handle_t*)bus : nullptr;
+}
+
+// Bytes -> pulses in the IDF bytes encoder, MSB-first: the RMT ISR expands each
+// bit into its symbol as it refills channel memory, so a frame of any length
+// goes out gapless (WS2812) with no per-bit buffer on the heap. The wire bitN
+// u32 is (first symbol << 16 | second); rmt_symbol_word_t keeps the first
+// symbol in the low half, so the halves swap.
 static void do_tx_bytes(RmtChan* c, uint8_t seq, uint16_t cmd,
                             const uint8_t* p, uint16_t len) {
   NEED(9);
-  rmt_data_t w0 = bit_to_word(read_be32(p)), w1 = bit_to_word(read_be32(p + 4));
-  const uint8_t* data = p + 8;
-  uint32_t nbits = (uint32_t)(len - 8) * 8;
-  uint32_t bit_ticks = w0.duration0 + w0.duration1;  // total ticks for one bit period, derived from the '0'-bit symbol (both symbols must have the same period)
-  rmt_data_t* buf = (rmt_data_t*)malloc(nbits * sizeof(rmt_data_t));
-  if (buf) {
-    size_t w = 0;
-    for (uint16_t i = 0; i < len - 8; i++)
-      for (int8_t b = 7; b >= 0; b--) buf[w++] = (data[i] >> b) & 1 ? w1 : w0;
-    bool ok = rmt_write_pumped(c, buf, w, nbits * bit_ticks / (c->tick_hz / 1000));
-    free(buf);
-    ok ? proto_reply_ok(seq, cmd) : proto_reply_err(seq, cmd, ST_IO);
-    return;
-  }
-  static rmt_data_t stage[RMT_STAGE_WORDS];
-  size_t w = 0;
-  for (uint16_t i = 0; i < len - 8; i++) {
-    for (int8_t b = 7; b >= 0; b--) {
-      stage[w++] = (data[i] >> b) & 1 ? w1 : w0;
-      if (w == RMT_STAGE_WORDS) {
-        if (!rmtWrite(c->pin, stage, w, tx_timeout_ms(c, w * 2 * bit_ticks)))
-          { proto_reply_err(seq, cmd, ST_IO); return; }
-        w = 0;
-      }
-    }
-  }
-  if (w && !rmtWrite(c->pin, stage, w, tx_timeout_ms(c, w * 2 * bit_ticks)))
-    { proto_reply_err(seq, cmd, ST_IO); return; }
-  proto_reply_ok(seq, cmd);
+  rmt_channel_handle_t ch = idf_tx_channel(c->pin);
+  rmt_bytes_encoder_config_t cfg = {};
+  uint32_t v0 = read_be32(p), v1 = read_be32(p + 4);
+  cfg.bit0.val = (v0 << 16) | (v0 >> 16);
+  cfg.bit1.val = (v1 << 16) | (v1 >> 16);
+  cfg.flags.msb_first = 1;
+  rmt_encoder_handle_t enc = nullptr;
+  if (!ch || rmt_new_bytes_encoder(&cfg, &enc) != ESP_OK) { proto_reply_err(seq, cmd, ST_IO); return; }
+  rmtWriteLooping(c->pin, nullptr, 0);  // a running TX_LOOP would hold the queue forever
+  free(c->loop_buf);
+  c->loop_buf = nullptr;
+  rmt_transmit_config_t tc = {};        // one shot; EOT low, as setup_channel set it
+  uint32_t bit_ticks = cfg.bit0.duration0 + cfg.bit0.duration1;
+  uint32_t est_ms = (uint32_t)(len - 8) * 8 * bit_ticks / (c->tick_hz / 1000);
+  esp_err_t e = rmt_transmit(ch, enc, p + 8, len - 8, &tc);
+  // Long trains pump the watch rules while the hardware drains (see rmt_write_pumped),
+  // then one wait for the rest: each timed-out wait logs "flush timeout" as an
+  // error, so polling it would flood SYS_LOG (and its first timeout ended the frame).
+  for (uint32_t t0 = millis(); e == ESP_OK && (uint32_t)(millis() - t0) < est_ms; vTaskDelay(1))
+    watch_poll();
+  if (e == ESP_OK) e = rmt_tx_wait_all_done(ch, 50);
+  if (e == ESP_ERR_TIMEOUT) { rmt_disable(ch); rmt_enable(ch); }  // abort: frees the encoder
+  rmt_del_encoder(enc);
+  e == ESP_OK ? proto_reply_ok(seq, cmd) : proto_reply_err(seq, cmd, ST_IO);
 }
 
 // Arm the RX channel, optionally fire a trigger pulse, then wait for capture or
@@ -282,10 +265,4 @@ void rmt_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else  // !BRIDGE_HAS_RMT
-
-UNSUPPORTED_STUB(rmt_handle, MOD_RMT)
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

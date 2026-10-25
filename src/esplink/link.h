@@ -77,10 +77,3 @@ uint16_t link_tcp_port();
 void link_tcp_poll();  // accept / dial / backoff, on slow_task
 uint16_t link_tcp_write_chunk(const uint8_t* data, uint16_t len);
 uint16_t link_tcp_read(uint8_t* buf, uint16_t maxlen);
-
-// Auth gate over both wireless links: USB implies physical access and is always
-// trusted; BLE and TCP must present the password via SYS_AUTH first.
-bool link_needs_auth(uint8_t link);
-bool link_authed(uint8_t link);
-void link_set_authed(uint8_t link, bool v);
-const char* link_auth_password(uint8_t link);

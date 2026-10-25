@@ -1,20 +1,17 @@
 // GENERATED from src/esplink/commands.h by scripts/gen-commands.mjs — do not edit.
 export const PROTOCOL_VERSION = 2;
 export const FW_VERSION_MAJOR = 3;
-export const FW_VERSION_MINOR = 0;
+export const FW_VERSION_MINOR = 1;
 export const FW_VERSION_PATCH = 0;
 export const FLAG_EVENT = 1;
 export const FLAG_ERROR = 2;
-export const FLAG_MORE = 4;
 export const MAX_PAYLOAD = 0x800;
 export const NET_CHUNK = 0x200;
 export const UART_CHUNK = 0x100;
 export const CAP_WIFI = 1;
-export const CAP_BLE = 2;
 export const CAP_BT_CLASSIC = 4;
 export const CAP_DAC = 8;
 export const CAP_TOUCH = 0x10;
-export const CAP_HALL = 0x20;
 export const CAP_PSRAM = 0x40;
 export const CAP_NATIVE_USB = 0x80;
 export const CAP_BLE_FW = 0x100;

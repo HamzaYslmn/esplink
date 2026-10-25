@@ -18,11 +18,7 @@ KEY_MAX = 15  # NVS key-length limit
 
 
 class Nvs:
-    """Persistent key/value store in NVS flash (see module docstring).
-
-        esp.nvs.set("count", 5)
-        esp.nvs.get_int("count")   # 5
-    """
+    """Persistent key/value store in NVS flash (see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

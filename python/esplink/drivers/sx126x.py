@@ -72,6 +72,7 @@ _BW = {                      # bandwidth (Hz) -> BW code
 # IRQ bit masks (datasheet table 13-29)
 _IRQ_TX_DONE = 0x0001
 _IRQ_RX_DONE = 0x0002
+_IRQ_HEADER_ERR = 0x0020
 _IRQ_CRC_ERR = 0x0040
 _IRQ_TIMEOUT = 0x0200
 _IRQ_ALL = 0xFFFF
@@ -97,21 +98,14 @@ class SX126x:
         if not -9 <= tx_power <= 22:
             raise ValueError(f"tx_power must be -9..22 dBm, got {tx_power}")
 
-        self._b = bridge
         self._spi = bridge.spi
         self._gpio = bridge.gpio
         self._cs = cs
         self._reset = reset
         self._busy = busy
-        self._dio1 = dio1
-        self._freq = int(freq)
-        self._sf = sf
-        self._bw_code = _BW[bw]
-        self._cr_code = cr - 4
-        self._preamble = 8
 
         if init_spi:  # pins left out are the board's (esp.pins)
-            self._spi.init(freq=spi_freq, mode=0, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
+            self._spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq, mode=0)
 
         # Control pins: RESET + CS are outputs we drive; BUSY (+ DIO1) are inputs.
         self._gpio.mode(reset, "output")
@@ -124,18 +118,25 @@ class SX126x:
         self._reset_chip()
         self._command(_SET_STANDBY, _STDBY_RC)
         self._command(_SET_PACKET_TYPE, _PKT_TYPE_LORA)
-        self.set_frequency(self._freq)
+        self.set_frequency(freq)
         # PA config for SX1262 high-power PA, +22 dBm capable (table 13-21).
         self._command(_SET_PA_CONFIG, 0x04, 0x07, 0x00, 0x01)
         self._command(_SET_TX_PARAMS, tx_power & 0xFF, _RAMP_200U)
         self._command(_SET_BUFFER_BASE, 0x00, 0x00)
-        self._set_modulation()
+        # SetModulationParams(SF, BW, CR, LowDataRateOptimize). LDRO must be on
+        # when the symbol time 2**SF / BW reaches 16.38 ms (datasheet 6.1.1.4),
+        # e.g. SF11/12 at 125 kHz but also SF10 at 62.5 kHz — not SF11 at 500 kHz.
+        ldro = 1 if (1 << sf) * 1000 / bw >= 16 else 0
+        self._command(_SET_MODULATION, sf, _BW[bw], cr - 4, ldro)
         self._set_packet_params(0)        # payload len set per-frame in send()
-        # Route TxDone | RxDone | Timeout to the global IRQ and onto DIO1.
-        mask = _IRQ_TX_DONE | _IRQ_RX_DONE | _IRQ_TIMEOUT
+        # Enable TxDone | RxDone | Timeout | header/CRC errors in the IRQ
+        # register (a masked IRQ never sets its bit, so a bad CRC would read as
+        # a good packet); route the done/timeout ones onto DIO1.
+        dio1_mask = _IRQ_TX_DONE | _IRQ_RX_DONE | _IRQ_TIMEOUT
+        mask = dio1_mask | _IRQ_HEADER_ERR | _IRQ_CRC_ERR
         self._command(_SET_DIO_IRQ_PARAMS,
                       (mask >> 8) & 0xFF, mask & 0xFF,   # IRQ mask
-                      (mask >> 8) & 0xFF, mask & 0xFF,   # DIO1 mask
+                      (dio1_mask >> 8) & 0xFF, dio1_mask & 0xFF,   # DIO1 mask
                       0x00, 0x00, 0x00, 0x00)            # DIO2, DIO3 unused
 
     # --- low-level command transport ----------------------------------------
@@ -175,27 +176,17 @@ class SX126x:
         time.sleep(0.005)
         self._wait_busy()
 
-    def _set_modulation(self) -> None:
-        # SetModulationParams(SF, BW, CR, LowDataRateOptimize). LDRO must be on
-        # when symbol time > 16.38 ms (high SF + low BW); enable it for SF11/12.
-        ldro = 0x01 if self._sf >= 11 else 0x00
-        self._command(_SET_MODULATION, self._sf, self._bw_code, self._cr_code, ldro)
-
     def _set_packet_params(self, payload_len: int) -> None:
-        # SetPacketParams: preamble[15:8], preamble[7:0], headerType,
-        # payloadLen, crcOn, invertIQ. 0x00 header = variable-length (explicit),
-        # 0x01 crc on, 0x00 standard IQ.
-        self._command(_SET_PACKET_PARAMS,
-                      (self._preamble >> 8) & 0xFF, self._preamble & 0xFF,
-                      0x00, payload_len & 0xFF, 0x01, 0x00)
+        # SetPacketParams: 8-symbol preamble, explicit (variable-length) header,
+        # payloadLen, CRC on, standard IQ.
+        self._command(_SET_PACKET_PARAMS, 0x00, 0x08, 0x00, payload_len & 0xFF, 0x01, 0x00)
 
     def set_frequency(self, hz: int) -> None:
         """Set the RF carrier frequency in Hz (e.g. 868_000_000).
 
         Register value = round(freq * 2**25 / 32 MHz), 4 bytes big-endian
         (datasheet 13.4.1; FXTAL = 32 MHz)."""
-        self._freq = int(hz)
-        reg = round(self._freq * (1 << 25) / 32_000_000)
+        reg = round(int(hz) * (1 << 25) / 32_000_000)
         self._command(_SET_RF_FREQUENCY,
                       (reg >> 24) & 0xFF, (reg >> 16) & 0xFF,
                       (reg >> 8) & 0xFF, reg & 0xFF)
@@ -210,8 +201,8 @@ class SX126x:
         self._command(_CLEAR_IRQ_STATUS, (mask >> 8) & 0xFF, mask & 0xFF)
 
     def _wait_irq(self, want: int, timeout: float | None) -> int:
-        """Poll (or watch DIO1 then read) until any `want` bit is set.
-        Returns the IRQ word; raises TimeoutError if `timeout` elapses."""
+        """Poll until any `want` bit is set; returns the IRQ word, raises
+        TimeoutError if `timeout` elapses."""
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             irq = self._irq_status()
@@ -251,22 +242,18 @@ class SX126x:
         except TimeoutError:
             self.standby()
             return None
-        if irq & _IRQ_TIMEOUT or irq & _IRQ_CRC_ERR:
+        if irq & (_IRQ_TIMEOUT | _IRQ_HEADER_ERR | _IRQ_CRC_ERR):
             self._clear_irq()
             return None
         # GetRxBufferStatus -> status, payloadLength, rxStartBufferPointer.
         st = self._read_command(_GET_RX_BUFFER_STATUS, 3)
         length, offset = st[1], st[2]
         # ReadBuffer(offset): opcode, offset, NOP, then `length` data bytes.
-        rx = self._spi_read_buffer(offset, length)
-        self._clear_irq()
-        return rx
-
-    def _spi_read_buffer(self, offset: int, length: int) -> bytes:
         self._wait_busy()
-        tx = bytes([_READ_BUFFER, offset & 0xFF, 0x00]) + b"\x00" * length
-        rx = self._spi.transfer(tx, cs=self._cs)
-        return rx[3:3 + length]   # drop status echo (opcode, offset, NOP slots)
+        rx = self._spi.transfer(bytes([_READ_BUFFER, offset, 0x00]) + bytes(length),
+                                cs=self._cs)
+        self._clear_irq()
+        return rx[3:]  # drop the opcode/offset/NOP status slots
 
     def standby(self) -> None:
         """Put the radio into standby (STDBY_RC), stopping any TX/RX."""

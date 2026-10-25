@@ -56,8 +56,6 @@ class BridgeManager:
 
     @staticmethod
     def _stale(b: Bridge | None) -> bool:
-        # Reconnect if there's no link, it's closing, or the board stopped
-        # answering (is_alive() went False after a reset / brown-out / unplug).
         return b is None or not b.is_alive()
 
     def is_connected(self) -> bool:
@@ -68,9 +66,8 @@ class BridgeManager:
         """The live Bridge, connecting on first use and **reconnecting if the
         board reset / browned out / was unplugged** (see Bridge.is_alive).
 
-        Fast path: a healthy link is returned without taking the lock (a single
-        reference read is atomic under the GIL), so concurrent callers never
-        serialize on a live connection — only on a (re)connect.
+        A healthy link is returned without taking the lock, so concurrent
+        callers serialize only on a (re)connect.
         """
         b = self._bridge
         if not self._stale(b):
@@ -119,8 +116,6 @@ class BridgeManager:
             self._close_locked()
 
     def _close_locked(self) -> None:
-        """Tear down the current Bridge. Subclasses extend this to drop any
-        per-connection state (mounted volumes, open ports) they layer on top."""
         if self._bridge is not None:
             with contextlib.suppress(Exception):
                 self._bridge.close()
@@ -147,22 +142,13 @@ _shared: dict[str, BridgeManager] = {}
 _shared_lock = threading.Lock()
 
 
-def _key(kwargs: dict) -> str:
-    """A sharing key for any set of Bridge settings.
-
-    Rendered as text so nothing has to be hashable or mutually comparable —
-    ``name=[...]`` is a list, and ``transport=`` is an arbitrary object whose repr
-    carries its id, which gives exactly the semantics you want there: the same
-    transport shares a manager, a different one doesn't.
-    """
-    return str(sorted(kwargs.items(), key=str))
-
-
 def _shared_manager(*, keepalive: float | None = None, **kwargs) -> BridgeManager:
     """The process-wide :class:`BridgeManager` for these settings, created once
-    and reused. ``keepalive`` (seconds) only takes effect when the manager is
-    first created for a given set of settings; it is not part of the key."""
-    key = _key(kwargs)
+    and reused. ``keepalive`` only applies on creation; it is not part of the key."""
+    # Text, so nothing has to be hashable: ``name=[...]`` is a list, and a
+    # ``transport=`` object's repr carries its id — the same transport shares a
+    # manager, a different one doesn't.
+    key = str(sorted(kwargs.items(), key=str))
     with _shared_lock:
         mgr = _shared.get(key)
         if mgr is None:

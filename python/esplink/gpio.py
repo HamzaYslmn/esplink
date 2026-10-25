@@ -26,8 +26,7 @@ class EdgeEvent:
 
     @classmethod
     def parse(cls, payload: bytes) -> EdgeEvent | None:
-        """Decode a GPIO_EDGE_EVT payload (pin u8 | level u8 | micros u32);
-        None if it's too short to be a valid event."""
+        """Decode a GPIO_EDGE_EVT payload (pin u8 | level u8 | micros u32)."""
         if len(payload) < 6:
             return None
         return cls(payload[0], payload[1], struct.unpack_from(">I", payload, 2)[0])
@@ -80,15 +79,9 @@ class Gpio:
         self._b.request(C.GPIO_SET_MODE, bytes([pin, m]))
 
     def write(self, pin: int, value: int | bool) -> int:
-        """Set a pin; returns the level the firmware reads back as confirmation.
-
-        The call already blocks for the firmware's ACK (it raises RemoteError /
-        BridgeTimeoutError if the command didn't execute). The returned value is
-        the pin's *actual* level read immediately after the write — for a normal
-        push-pull output that echoes what you wrote; for open-drain or a pin not
-        in output mode it reports the real pad state — compare it to what you
-        wrote to catch a pin that isn't an output, is shorted, or is driven.
-        """
+        """Set a pin; returns the pad level read back right after the write —
+        compare it to what you wrote to catch a pin that isn't an output, is
+        shorted, or is driven externally."""
         return self._b.request(C.GPIO_WRITE, bytes([pin, 1 if value else 0]))[0]
 
     def read(self, pin: int) -> int:
@@ -110,18 +103,15 @@ class Gpio:
         return levels
 
     def status(self, pin: int) -> PinStatus:
-        """Full state of a pin straight from the chip — not just "command ran":
-        the live level, the mode it was configured with, and whether a PWM
-        (LEDC) channel is driving it (with its frequency and duty)."""
+        """A pin's live level, configured mode and PWM drive, read from the chip."""
         r = self._b.request(C.GPIO_STATUS, bytes([pin]))
         level, mode = r[0], r[1]
         freq, duty = struct.unpack_from(">II", r, 2)
         return _pin_status(pin, level, mode, freq, duty)
 
     def dump(self) -> list[PinStatus]:
-        """Return the full status of every active pin in a single round-trip.
-        Covers all pins that were configured via the bridge or are currently
-        driven by PWM — useful for a complete snapshot without polling pin by pin."""
+        """status() of every pin configured via the bridge or driven by PWM,
+        in one round-trip."""
         r = self._b.request(C.GPIO_DUMP)
         out, pos = [], 1
         for _ in range(r[0]):

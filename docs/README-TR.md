@@ -184,22 +184,25 @@ Gerçek kartlarda ölçüldü, Windows 11 bilgisayar:
 
 | | klasik ESP32 (CP2102) | ESP32-S3 (native USB) | nRF52840 Pro Micro |
 |---|---|---|---|
-| USB ping p50 / p99 | 2,0 / 3,1 ms | 0,26 / 0,5 ms | 0,97 / 1,1 ms |
+| USB ping p50 / p99 | 1,9 / 2,1 ms | 0,23 / 0,36 ms | 0,30 / 0,43 ms |
 | USB bağlantı süresi | 1–2,5 sn (kartı resetler) | 0,01 sn | 0,01 sn |
 | USB boru hattı (8 thread) | 3.800 istek/sn | 7.500–9.200 istek/sn | 4.400 istek/sn |
-| BLE ping p50 | 30 ms | 30 ms | 30 ms |
+| BLE ping p50 | 15 ms | 15 ms | 15 ms |
+| dosya okuma USB / BLE | 142 / 40 KB/sn | 749 / 67 KB/sn | 246 / 27 KB/sn |
+| GPIO kenarı → bilgisayar olayı | | +0,16 ms | |
 | I2C register okuma | | 0,38 ms | |
 | OLED 128×64, tipik / tam kare | | 477 / 33 fps (1 MHz I2C'de 58) | |
 
-Bilgisayar istek başına yaklaşık 20 µs harcar. BLE gidiş-dönüşleri Windows'un
-15 ms'lik iki bağlantı aralığıdır — kartın değil, bilgisayarın alt sınırı.
+Bilgisayar istek başına yaklaşık 20 µs harcar. Bir BLE gidiş-dönüşü iki bağlantı
+aralığıdır: kart tam 7,5 ms ister, Windows bunu bağlandıktan yaklaşık 2 sn sonra
+verir (7,5–15 ms aralığı sunulunca 15'i seçer).
 
 ## Donanım
 
 | kart | derleme | notlar |
 |---|---|---|
 | klasik **ESP32** (CP2102/CH340) | `arduino-cli compile examples/Bridge` | her şey; BLE varken SD'ye yer yok (LittleFS çalışır) |
-| **ESP32-S3** (native USB) | `--profile esp32s3` | light sleep USB dışı bir bağlantı ister |
+| **ESP32-S3** (native USB veya UART portu) | `--profile esp32s3` | iki USB portu da bağlantıdır; light sleep USB dışı bir bağlantı ister |
 | **ESP32-C3** | `--fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc,PartitionScheme=min_spiffs` | derleme kontrolü yapıldı |
 | **nRF52840** Pro Micro | `--profile promicro examples/Bridge_nRF52` | BLE, GPIO, ADC, PWM, I2C, SPI, UART, 1-Wire, dosyalar, NVS, uyku |
 

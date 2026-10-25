@@ -3,9 +3,6 @@
 // Filesystem IDs: 0 = LittleFS, 1 = SD over SPI (uses its own bus BRIDGE_SPI_HOST1 — do NOT share with mod_spi host 1), 2 = SD_MMC.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_FS
-
 #include <FS.h>
 #include <LittleFS.h>
 #if BRIDGE_HAS_SD
@@ -233,12 +230,4 @@ void fs_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else
-
-void fs_handle(uint8_t, uint8_t seq, const uint8_t*, uint16_t) {
-  proto_reply_err(seq, CMD(MOD_FS, 0), ST_UNSUPPORTED);
-}
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

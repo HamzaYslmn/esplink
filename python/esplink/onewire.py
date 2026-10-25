@@ -8,7 +8,6 @@ from __future__ import annotations
 from . import constants as C
 
 SEARCH_ROM = 0xF0
-ALARM_SEARCH = 0xEC
 MATCH_ROM = 0x55
 SKIP_ROM = 0xCC
 
@@ -58,13 +57,7 @@ class OneWire:
         else:
             self.write(pin, bytes([MATCH_ROM]) + bytes.fromhex(rom))
 
-    def _triplet(self, pin: int, direction: int) -> tuple[int, int, int]:
-        # ROM search triplet: firmware reads two bits then writes one.
-        # Returns (id_bit, complement_bit, direction_taken).
-        r = self._b.request(C.OW_TRIPLET, bytes([pin, direction]))
-        return r[0], r[1], r[2]
-
-    def search(self, pin: int, *, alarm: bool = False) -> list[str]:
+    def search(self, pin: int) -> list[str]:
         """Enumerate device ROMs (hex, family code first) — Maxim algorithm."""
         roms: list[str] = []
         rom = bytearray(8)
@@ -72,7 +65,7 @@ class OneWire:
         while True:
             if not self.reset(pin):
                 return roms
-            self.write(pin, bytes([ALARM_SEARCH if alarm else SEARCH_ROM]))
+            self.write(pin, bytes([SEARCH_ROM]))
             disc = 0
             for bit in range(64):
                 byte_i, bit_i = divmod(bit, 8)
@@ -80,7 +73,8 @@ class OneWire:
                     hint = rom[byte_i] >> bit_i & 1
                 else:
                     hint = 1 if bit + 1 == last_disc else 0
-                id_bit, cmp_bit, taken = self._triplet(pin, hint)
+                # triplet: the firmware reads id + complement bits, then writes one
+                id_bit, cmp_bit, taken = self._b.request(C.OW_TRIPLET, bytes([pin, hint]))[:3]
                 if id_bit and cmp_bit:
                     return roms  # both bits 1 means no devices remain on this branch
                 if not id_bit and not cmp_bit and taken == 0:

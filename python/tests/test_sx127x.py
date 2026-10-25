@@ -11,6 +11,7 @@ REG_FIFO_ADDR_PTR = 0x0D
 REG_IRQ_FLAGS = 0x12
 REG_RX_NB_BYTES = 0x13
 REG_MODEM_CONFIG_2 = 0x1E
+REG_MODEM_CONFIG_3 = 0x26
 REG_PAYLOAD_LENGTH = 0x22
 REG_VERSION = 0x42
 REG_FIFO_RX_CURRENT_ADDR = 0x10
@@ -33,7 +34,7 @@ class FakeSpi:
         self.regs = {REG_VERSION: 0x12}
         self.queues = {}            # reg -> list of values consumed FIFO
 
-    def init(self, *, sck=18, miso=19, mosi=23, freq=1_000_000, mode=0,
+    def init(self, *, sck=None, miso=None, mosi=None, freq=1_000_000, mode=0,
              msb_first=True, host=0):
         self.inited = dict(sck=sck, miso=miso, mosi=mosi, freq=freq, mode=mode)
 
@@ -91,7 +92,7 @@ def make(esp=None, **kw):
 
 def test_construct_verifies_version_and_inits_spi():
     esp, _ = make()
-    assert esp.spi.inited == dict(sck=18, miso=19, mosi=23, freq=1_000_000, mode=0)
+    assert esp.spi.inited == dict(sck=None, miso=None, mosi=None, freq=1_000_000, mode=0)
     # The version register was read on a held-CS 2-byte frame.
     assert (bytes([REG_VERSION, 0x00]), 5) in esp.spi.frames
 
@@ -129,6 +130,15 @@ def test_sets_sf7_with_crc():
     assert esp.spi.last_write(REG_MODEM_CONFIG_2) == 0x74
 
 
+@pytest.mark.parametrize("sf,bw,cfg3", [
+    (7, 125_000, 0x04), (10, 125_000, 0x04), (11, 125_000, 0x0C), (12, 125_000, 0x0C),
+    (10, 62_500, 0x0C), (12, 500_000, 0x04)])
+def test_ldro_follows_symbol_time(sf, bw, cfg3):
+    # LowDataRateOptimize (bit 3) iff 2**SF / BW >= 16 ms; AgcAutoOn (bit 2) always.
+    esp, _ = make(sf=sf, bw=bw)
+    assert esp.spi.last_write(REG_MODEM_CONFIG_3) == cfg3
+
+
 def test_reset_pulse_low_then_high():
     esp, _ = make(reset=14)
     assert esp.gpio.modes[14] == "output"
@@ -138,6 +148,8 @@ def test_reset_pulse_low_then_high():
 def test_invalid_args_rejected():
     with pytest.raises(ValueError):
         make(sf=5)
+    with pytest.raises(ValueError):
+        make(sf=6)            # implicit-header only on SX1276
     with pytest.raises(ValueError):
         make(cr=9)
     with pytest.raises(ValueError):

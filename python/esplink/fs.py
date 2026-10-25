@@ -23,24 +23,29 @@ _MODES = {"r": 0, "w": 1, "a": 2}
 class RemoteFile:
     """File handle on the ESP32 — read/write/seek/close, context manager."""
 
-    def __init__(self, bridge, fd: int, size: int):
+    def __init__(self, bridge, fd: int, size: int, pos: int = 0):
         self._b = bridge
         self._fd = fd
         self.size = size
+        self._pos = pos  # mirrors the firmware's cursor, so read() knows what is left
         self._open = True
 
     def read(self, n: int | None = None) -> bytes:
-        """Read n bytes (whole file when n is None)."""
+        """Read n bytes (the rest of the file when n is None)."""
+        todo = max(0, self.size - self._pos) if n is None else n
+        wants = [min(CHUNK, todo - i) for i in range(0, todo, CHUNK)]
         parts: list[bytes] = []
-        got = 0
-        while n is None or got < n:
-            want = CHUNK if n is None else min(CHUNK, n - got)
-            chunk = self._b.request(C.FS_READ, struct.pack(">BH", self._fd, want))
-            parts.append(chunk)
-            got += len(chunk)
-            if len(chunk) < want:  # EOF
-                break
-        return b"".join(parts)
+        replies = self._b._pipeline(C.FS_READ, (struct.pack(">BH", self._fd, w) for w in wants))
+        try:
+            for want, chunk in zip(wants, replies):
+                parts.append(chunk)
+                if len(chunk) < want:  # EOF
+                    break
+        finally:
+            replies.close()   # abandons reads queued past EOF
+        data = b"".join(parts)
+        self._pos += len(data)
+        return data
 
     def write(self, data: bytes) -> int:
         """Write `data` at the current position; returns bytes written.
@@ -52,6 +57,7 @@ class RemoteFile:
             r = self._b.request(C.FS_WRITE, bytes([self._fd]) + chunk)
             w = struct.unpack(">H", r)[0]
             written += w
+            self._pos += w
             if w < len(chunk):
                 raise OSError("short write (filesystem full?)")
         return written
@@ -59,6 +65,7 @@ class RemoteFile:
     def seek(self, pos: int) -> None:
         """Move the read/write cursor to absolute byte offset `pos`."""
         self._b.request(C.FS_SEEK, struct.pack(">BI", self._fd, pos))
+        self._pos = pos
 
     def close(self) -> None:
         """Flush and close the file handle (idempotent)."""
@@ -74,16 +81,7 @@ class RemoteFile:
 
 
 class Volume:
-    """One mounted filesystem (returned by ``esp.fs.mount``). Paths are absolute.
-
-        >>> vol = esp.fs.mount("littlefs")
-        >>> vol.write_file("/a.txt", b"hi")
-        >>> vol.read_file("/a.txt")
-        b'hi'
-        >>> for name, size, isdir in vol.list("/"):
-        ...     print(name, size, isdir)
-        >>> vol.umount()
-    """
+    """One mounted filesystem (returned by ``esp.fs.mount``). Paths are absolute."""
 
     def __init__(self, bridge, kind: str, total_kb: int, used_kb: int):
         self._b = bridge
@@ -102,7 +100,7 @@ class Volume:
         r = self._b.request(C.FS_OPEN,
                             bytes([self._id, _MODES[mode]]) + self._path(path)[1:])
         fd, size = struct.unpack(">BI", r)
-        return RemoteFile(self._b, fd, size)
+        return RemoteFile(self._b, fd, size, size if mode == "a" else 0)
 
     def read_file(self, path: str) -> bytes:
         """Read and return the whole file at `path`."""
@@ -166,13 +164,8 @@ class Volume:
         self._b.fs.volumes.pop(self.kind, None)
 
 
-
 class Fs:
-    """Filesystem access on the ESP32 — reached as ``esp.fs``.
-
-        >>> vol = esp.fs.mount("littlefs")     # or "sd"/"sdmmc"
-        >>> vol.write_file("/log.txt", b"boot ok")
-    """
+    """Filesystem access on the ESP32 (``esp.fs``; see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

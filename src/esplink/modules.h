@@ -12,6 +12,8 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void analog_handle(uint8_t mod, uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);  // ADC+DAC+TOUCH
 void pwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void i2c_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
+class TwoWire;  // SCAN/WRITE/READ/WRITE_READ on an initialised bus (esplink/mod_i2c.cpp)
+bool i2c_transfer(TwoWire* w, uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void spi_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void uart_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void wifi_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
@@ -33,10 +35,8 @@ void watch_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len);
 void watch_poll();  // slow_task: evaluate polled watch rules -> WATCH_EVT
 bool ble_module_active();  // SYS_RADIO_OFF guard: mod_ble has touched the BLE stack
 
-// Generates a handler body that returns ST_UNSUPPORTED for every op.
-// Use in the #else branch of a chip-capability guard so that all declared
-// handler symbols still link. Example:
-//   UNSUPPORTED_STUB(i2s_handle, MOD_I2S)
+// A handler that replies ST_UNSUPPORTED to every op, for the #else branch of a
+// capability guard so every dispatched handler symbol still links.
 #define UNSUPPORTED_STUB(handler, mod) \
   void handler(uint8_t op, uint8_t seq, const uint8_t*, uint16_t) { \
     proto_reply_err(seq, CMD(mod, op), ST_UNSUPPORTED); \
@@ -51,8 +51,6 @@ void gpio_poll();
 void uart_poll();
 void wifi_poll();
 void net_poll();
-
-// Wi-Fi radio ownership (heap guards, power-off when unused): see radio.h.
 
 // True if `pin` is an ADC2 channel — ADC2 shares hardware with the Wi-Fi radio,
 // so reads on these pins fail/return garbage while Wi-Fi is active. Shared by the
@@ -81,10 +79,15 @@ static inline bool pin_is_adc2(uint8_t pin) {
 #include <esp32-hal-periman.h>
 #include <esp32-hal-uart.h>
 #endif
-bool proto_usb_link_active();  // protocol.cpp: a valid USB frame since boot
+bool proto_usb_link_active();    // protocol.cpp: a valid USB frame since boot
+bool proto_uart0_link_active();  // S3: a valid frame on its UART0 link since boot
 static inline bool pin_is_link(int8_t pin) {
 #if defined(ARDUINO_ARCH_ESP32)
-  if (pin < 0 || !proto_usb_link_active()) return false;
+  if (pin < 0) return false;
+#if BRIDGE_UART0_LINK
+  if (proto_uart0_link_active() && (pin == uart_get_TxPin(0) || pin == uart_get_RxPin(0))) return true;
+#endif
+  if (!proto_usb_link_active()) return false;
 #if BRIDGE_NATIVE_USB
   peripheral_bus_type_t t = perimanGetPinBusType(pin);
   return t == ESP32_BUS_TYPE_USB_DM || t == ESP32_BUS_TYPE_USB_DP;
@@ -106,6 +109,9 @@ static inline bool pin_is_link(int8_t pin) {
 // Fills out[] with the SYS_INFO payload and returns the byte count written.
 // Used for both the SYS_INFO response and the SYS_READY boot-banner event.
 uint16_t sys_build_info(uint8_t* out);
+// The per-arch middle of it (mod_sys.cpp): rev u8|mac[6]|caps u32|gpio_count u8|
+// flash_mb u8 written at p; returns the end.
+uint8_t* sys_info_body(uint8_t* p);
 
 // Stored device name ("" when unset); the second half of the advertised identity.
 const char* sys_device_name();

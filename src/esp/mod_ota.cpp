@@ -5,9 +5,6 @@
 // Runs on slow_task because flash writes block the CPU.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_OTA
-
 #include <Update.h>
 #include <esp_ota_ops.h>
 
@@ -70,10 +67,4 @@ void ota_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else
-
-UNSUPPORTED_STUB(ota_handle, MOD_OTA)
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

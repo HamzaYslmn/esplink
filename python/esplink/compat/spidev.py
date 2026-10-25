@@ -10,9 +10,8 @@
     raw = spi.xfer2([1, 0x80, 0])     # MCP3008 channel 0, identical from here
 
 ``open(bus, device)`` picks the ESP32 SPI host ``bus`` and the chip select
-``ce[device]`` — CE0 is GPIO5 and CE1 is GPIO15 unless you pass ``ce=``, so
-``open(0, 1)`` never lands on a strapping or UART pin. Clock, MOSI and MISO
-default to the classic ESP32's VSPI pins 18/23/19.
+``ce[device]`` — CE0 is the board's CS (``esp.pins.cs``) and CE1 is GPIO15
+unless you pass ``ce=``. Clock, MOSI and MISO default to the board's pins.
 
 Only 8-bit words with an active-low CS are supported. ``xfer`` holds CS for
 the whole list like ``xfer2`` (spidev pulses it between words); per-call

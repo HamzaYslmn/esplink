@@ -24,6 +24,8 @@ GET_IRQ_STATUS = 0x15
 CLR_IRQ_STATUS = 0x97
 GET_RX_BUFFER_STATUS = 0x17
 SET_DIO_IRQ = 0x8D
+WRITE_REGISTER = 0x18
+SET_SLEEP = 0x84
 
 IRQ_TX_DONE = 0x0001
 IRQ_RX_DONE = 0x0002
@@ -36,7 +38,7 @@ class FakeSpi:
         # opcode -> reply bytes appended after the status byte
         self.canned = {}
 
-    def init(self, *, sck=18, miso=19, mosi=23, freq=1_000_000, mode=0, msb_first=True):
+    def init(self, *, sck=None, miso=None, mosi=None, freq=1_000_000, mode=0, msb_first=True):
         self.inited = (sck, miso, mosi, freq, mode, msb_first)
 
     def transfer(self, tx, *, cs=None):
@@ -93,7 +95,7 @@ def frames_with(esp, opcode):
 
 def test_spi_initialised_mode0_msb():
     esp, _ = make()
-    assert esp.spi.inited == (18, 19, 23, 8_000_000, 0, True)
+    assert esp.spi.inited == (None, None, None, 8_000_000, 0, True)
 
 
 def test_reset_pulse_high_low_high():
@@ -128,7 +130,46 @@ def test_modulation_params_sf_high_nibble():
 def test_dio_irq_params_routes_txdone_rxdone():
     esp, _ = make()
     d = frames_with(esp, SET_DIO_IRQ)
-    assert d and d[0][1:3] == bytes([0x40, 0x03])   # IRQ mask = TxDone|RxDone|Timeout
+    # IRQ mask = TxDone|RxDone|HeaderErr|CrcErr|Timeout (a masked IRQ never
+    # sets its bit, so CRC errors must be enabled); DIO1 = TxDone|RxDone|Timeout.
+    assert d and d[0][1:5] == bytes([0x40, 0x63, 0x40, 0x03])
+
+
+def test_packet_params_lora_layout():
+    # Datasheet SetPacketParams(LoRa): preamble is ONE byte (exp << 4 | mant,
+    # 12 = 6 * 2**1), then header type, payload len, CRC, IQ, 2 reserved.
+    esp, radio = make()
+    esp.spi.canned[GET_IRQ_STATUS] = bytes([0x00, IRQ_TX_DONE])
+    radio.send(b"abc")
+    assert frames_with(esp, SET_PACKET_PARAMS)[-1] == bytes(
+        [SET_PACKET_PARAMS, 0x16, 0x00, 3, 0x20, 0x40, 0x00, 0x00])
+
+
+@pytest.mark.parametrize("dbm,code", [(-18, 0), (0, 18), (13, 31)])
+def test_tx_power_code_is_dbm_plus_18(dbm, code):
+    esp, _ = make(tx_power=dbm)
+    assert frames_with(esp, SET_TX_PARAMS)[0] == bytes([SET_TX_PARAMS, code, 0xE0])
+
+
+@pytest.mark.parametrize("sf,cfg", [
+    (5, 0x1E), (6, 0x1E), (7, 0x37), (8, 0x37), (9, 0x32), (12, 0x32)])
+def test_sf_config_register_written_after_modulation(sf, cfg):
+    esp, _ = make(sf=sf)
+    writes = frames_with(esp, WRITE_REGISTER)
+    assert bytes([WRITE_REGISTER, 0x09, 0x25, cfg]) in writes
+    assert bytes([WRITE_REGISTER, 0x09, 0x3C, 0x01]) in writes   # freq-error compensation on
+
+
+def test_sleep_retains_buffer_and_ram():
+    esp, radio = make()
+    radio.sleep()
+    assert frames_with(esp, SET_SLEEP)[-1] == bytes([SET_SLEEP, 0x03])
+
+
+def test_receive_drops_crc_error():
+    esp, radio = make()
+    esp.spi.canned[GET_IRQ_STATUS] = bytes([0x00, IRQ_RX_DONE | 0x40])   # RxDone + CrcError
+    assert radio.receive(timeout=1.0) is None
 
 
 def test_busy_polled_before_commands():
@@ -146,9 +187,9 @@ def test_send_writes_buffer_then_tx_and_completes_on_txdone():
 
     wb = frames_with(esp, WRITE_BUFFER)
     assert wb and wb[0] == bytes([WRITE_BUFFER, 0x00, 0xDE, 0xAD, 0xBE, 0xEF])
-    # payload length propagated into SetPacketParams (byte index 4 = payload len)
+    # payload length propagated into SetPacketParams (byte index 3 = payload len)
     pp = frames_with(esp, SET_PACKET_PARAMS)
-    assert pp and pp[-1][4] == 4
+    assert pp and pp[-1][3] == 4
     tx = frames_with(esp, SET_TX)
     assert tx, "SetTx must be issued"
     # IRQ polled and cleared

@@ -54,8 +54,6 @@ class Motor:
         self._in1 = in1
         self._in2 = in2
         self._enable = enable
-        self._stby = stby
-        self._freq = freq
 
         if enable is not None:
             # Scheme 1: direction pins are plain outputs, speed via PWM on enable.
@@ -74,33 +72,22 @@ class Motor:
 
         self.stop()
 
-    @staticmethod
-    def _clamp(speed: float) -> float:
-        """Clamp signed speed to [-1.0, 1.0]."""
-        return max(-1.0, min(1.0, float(speed)))
+    def _drive(self, a: int, b: int, duty: float) -> None:
+        """Scheme 1: levels a/b on in1/in2, `duty` % on enable. Scheme 2: `duty`
+        % on each input whose level is 1, 0 % on the other."""
+        if self._enable is not None:
+            self._gpio.write(self._in1, a)
+            self._gpio.write(self._in2, b)
+            self._pwm.duty_pct(self._enable, duty)
+        else:
+            self._pwm.duty_pct(self._in1, duty * a)
+            self._pwm.duty_pct(self._in2, duty * b)
 
     def set_speed(self, speed: float) -> None:
         """Drive at signed ``speed`` in [-1.0, 1.0]: sign = direction,
         magnitude = duty %. ``0`` coasts."""
-        speed = self._clamp(speed)
-        duty = abs(speed) * 100.0
-        if self._enable is not None:
-            # Scheme 1: set direction on the GPIO pins, duty on the enable PWM.
-            if speed >= 0:
-                self._gpio.write(self._in1, 1)
-                self._gpio.write(self._in2, 0)
-            else:
-                self._gpio.write(self._in1, 0)
-                self._gpio.write(self._in2, 1)
-            self._pwm.duty_pct(self._enable, duty)
-        else:
-            # Scheme 2: PWM on the leading pin, the other held low (0% duty).
-            if speed >= 0:
-                self._pwm.duty_pct(self._in1, duty)
-                self._pwm.duty_pct(self._in2, 0)
-            else:
-                self._pwm.duty_pct(self._in1, 0)
-                self._pwm.duty_pct(self._in2, duty)
+        speed = max(-1.0, min(1.0, float(speed)))
+        self._drive(*((1, 0) if speed >= 0 else (0, 1)), abs(speed) * 100.0)
 
     def forward(self, speed: float = 1.0) -> None:
         """Spin forward at ``speed`` in [0, 1.0] (magnitude only)."""
@@ -112,26 +99,12 @@ class Motor:
 
     def stop(self) -> None:
         """Coast: cut drive (duty 0 / both inputs low). Motor free-wheels."""
-        if self._enable is not None:
-            self._pwm.duty_pct(self._enable, 0)
-            self._gpio.write(self._in1, 0)
-            self._gpio.write(self._in2, 0)
-        else:
-            self._pwm.duty_pct(self._in1, 0)
-            self._pwm.duty_pct(self._in2, 0)
+        self._drive(0, 0, 0)
 
     def brake(self) -> None:
-        """Active brake: short the motor terminals (both direction inputs HIGH)."""
-        if self._enable is not None:
-            # Both direction pins high; keep the chip enabled at full duty so
-            # the short is actually applied across the windings.
-            self._gpio.write(self._in1, 1)
-            self._gpio.write(self._in2, 1)
-            self._pwm.duty_pct(self._enable, 100)
-        else:
-            # Two-PWM: both inputs at 100% duty = both HIGH = brake.
-            self._pwm.duty_pct(self._in1, 100)
-            self._pwm.duty_pct(self._in2, 100)
+        """Active brake: short the motor terminals (both inputs HIGH; scheme 1
+        keeps enable at full duty so the short is actually applied)."""
+        self._drive(1, 1, 100)
 
     def deinit(self) -> None:
         """Stop the motor and release the PWM channel(s)."""

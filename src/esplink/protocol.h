@@ -39,10 +39,18 @@ void proto_log_heap(const char* stage);  // sends a SYS_LOG event: "<stage>, N B
 // Block until every queued frame is on the wire (baud switch / reset).
 void proto_tx_flush();
 
+// S3 (BRIDGE_UART0_LINK): the wired host is on UART0, not native USB.
+bool proto_wired_on_uart0();
+
 // Wake rx_task now: link RX callbacks call this the moment bytes land, so a
 // request is parsed immediately instead of on the next 1 ms poll. Task context
 // only (UART event task, HW-CDC event loop, BT host task) — not from an ISR.
 void proto_rx_kick();
+// ISR flavour (GPIO edges): sets *woken when rx_task should preempt.
+void proto_rx_kick_from_isr(BaseType_t* woken);
+// Wake tx_task when a full link ring drains (nRF USB TX complete), instead of
+// leaving the rest of a big reply to its next 1 ms poll.
+void proto_tx_kick();
 
 uint32_t proto_dropped_events();
 
@@ -53,8 +61,6 @@ uint32_t proto_dropped_events();
 bool proto_link_tcp_alloc();
 void proto_link_tcp_free();
 void proto_link_tcp_reset();
-
-uint16_t crc16_ccitt(const uint8_t* data, uint16_t len);
 
 // Big-endian read/write helpers used throughout the protocol layer.
 static inline uint16_t read_be16(const uint8_t* p) { return ((uint16_t)p[0] << 8) | p[1]; }

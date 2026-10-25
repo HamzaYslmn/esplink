@@ -75,12 +75,11 @@ class LumaSPI:
             time.sleep(0.01)
 
     def _send(self, data: bytes) -> None:
-        # Split large payloads into chunks that fit within the bridge's max
-        # transfer size. CS is toggled around each chunk, but display
-        # controllers latch data per byte, so mid-transfer CS gaps are fine.
-        max_chunk = MAX_PAYLOAD - 2  # SPI_TRANSFER payload cap minus header (matches spi._CHUNK)
-        for off in range(0, len(data), max_chunk):
-            self._spi.transfer(data[off : off + max_chunk], cs=self._cs, host=self._host)
+        # One CS-framed transfer per chunk; display controllers latch per
+        # byte, so CS toggling between chunks is fine.
+        n = MAX_PAYLOAD - 2  # SPI_TRANSFER payload minus its host + CS header
+        for off in range(0, len(data), n):
+            self._spi.transfer(data[off : off + n], cs=self._cs, host=self._host)
 
     def command(self, *cmd: int) -> None:
         self._gpio.write(self._dc, 0)

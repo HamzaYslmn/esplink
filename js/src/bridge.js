@@ -242,7 +242,9 @@ const pwm = (b) => {
   const api = {
     /** Resolution defaults to 10 bits, or the finest that fits when `freq` is too high for 10. */
     attach: async (pin, freq = 1000, resolution_bits = null) => {
-      resolution_bits ??= Math.min(10, pwm_bits(freq));
+      // 10 bits where it fits; more below ~76 Hz (LEDC divider max 1023), as in Python
+      resolution_bits ??= Math.max(Math.floor(80_000_000 / 1023 / Math.max(1, freq)).toString(2).length,
+                                   Math.min(10, pwm_bits(freq)));
       await b.request(C.PWM_ATTACH, pack("BIB", pin, freq, resolution_bits));
       attached.set(pin, [freq, resolution_bits]);
     },

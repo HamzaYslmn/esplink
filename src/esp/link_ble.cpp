@@ -66,8 +66,18 @@ static void link_gatts_evt(esp_gatts_cb_event_t event, esp_gatt_if_t,
   if (event == ESP_GATTS_CONNECT_EVT) memcpy(peer, param->connect.remote_bda, sizeof(peer));
 }
 #define PEER peer
+// The classic chip's BLE 4.2 controller has no 2M PHY, and asking it for
+// 251-byte packets measured no gain (FS read 38 KB/s either way).
+static void fast_link() {}
 #else
+#include <host/ble_gap.h>
 #define PEER server->getConnId()  // NimBLE addresses it by connection handle
+// 2M PHY + 251-byte link-layer packets: a 2 KB reply in fewer, shorter events.
+static void fast_link() {
+  uint16_t h = server->getConnId();
+  ble_gap_set_prefered_le_phy(h, BLE_GAP_LE_PHY_2M_MASK, BLE_GAP_LE_PHY_2M_MASK, BLE_GAP_LE_PHY_CODED_ANY);
+  ble_gap_set_data_len(h, 251, 2120);
+}
 #endif
 
 // Interval units are 1.25 ms, timeout 10 ms. Asked only after SYS_AUTH: forcing
@@ -197,7 +207,11 @@ bool link_ble_authed() { return connected && authed; }
 
 void link_ble_set_authed(bool v) {
   authed = v;
-  if (v) request_conn_params(0x06, 0x0C, 0, 100);  // 7.5-15 ms, 1 s supervision
+  if (!v || !server || !connected) return;
+  // Exactly 7.5 ms: offered a 7.5-15 ms range, Windows picks 15 (BLE ping 30 ms);
+  // asked for 7.5 alone it grants it (ping 15 ms, measured). 1 s supervision.
+  request_conn_params(0x06, 0x06, 0, 100);
+  fast_link();
 }
 const char* link_ble_password() { return link_password; }
 void* link_ble_server() { return server; }
@@ -208,7 +222,7 @@ bool link_ble_power(bool battery) {
   // board has nothing to send, so a busy link stays responsive); 4 s timeout
   // because the spec floor here is (1+4)*100*2 = 1 s.
   if (battery) request_conn_params(0x28, 0x50, 4, 400);
-  else request_conn_params(0x06, 0x0C, 0, 100);
+  else request_conn_params(0x06, 0x06, 0, 100);
   return true;
 }
 
@@ -250,22 +264,15 @@ bool link_ble_shutdown() {
 
 bool link_bt_dead() { return bt_dead; }
 
-#else  // !BRIDGE_BLE — empty stubs so the rest of the codebase links cleanly on BLE-less builds
+#else  // !BRIDGE_BLE — stubs for the callers outside #if BRIDGE_BLE
 
-void bt_prepare_ble_only() {}
-void link_ble_init(const char*) {}
 bool link_ble_enabled() { return false; }
 uint32_t link_ble_rx_dropped() { return 0; }
 bool link_ble_authed() { return false; }
 void link_ble_set_authed(bool) {}
 const char* link_ble_password() { return ""; }
-void* link_ble_server() { return nullptr; }
-bool link_ble_up() { return false; }
 bool link_ble_power(bool) { return false; }
-uint16_t link_ble_write_chunk(const uint8_t*, uint16_t) { return 0; }
-uint16_t link_ble_read(uint8_t*, uint16_t) { return 0; }
 bool link_ble_shutdown() { return false; }
-bool link_bt_dead() { return false; }
 
 #endif
 #endif  // ARDUINO_ARCH_ESP32

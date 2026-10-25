@@ -29,17 +29,12 @@ Refs:
 from __future__ import annotations
 
 
-
 class INMP441:
     def __init__(self, bridge, *, bclk: int, ws: int, din: int,
                  rate: int = 16_000):
         # INMP441 packs its 24-bit sample into a 32-bit slot, so capture is
         # always forced to 32-bit mono frames.
         self._i2s = bridge.i2s
-        self._bclk = bclk
-        self._ws = ws
-        self._din = din
-        self._rate = rate
         self._i2s.begin_input(bclk=bclk, ws=ws, din=din, rate=rate,
                               bits=32, stereo=False)
 
@@ -56,11 +51,8 @@ class INMP441:
         truncates the 24-bit precision to 16 bits and halves the byte rate.
         """
         raw = self.record(seconds)
-        out = bytearray()
-        # Walk the little-endian 32-bit slots; bytes [2:4] are the top 16 bits.
-        for i in range(0, len(raw) - 3, 4):
-            out += raw[i + 2 : i + 4]
-        return bytes(out)
+        # bytes [2:4] of each little-endian 32-bit slot are its top 16 bits
+        return b"".join(raw[i + 2 : i + 4] for i in range(0, len(raw) - 3, 4))
 
     def stop(self) -> None:
         """Stop the I2S peripheral and release its pins."""

@@ -22,22 +22,22 @@ const char* plat_reset_reason() {
     case ESP_RST_WDT:       return "watchdog";
     case ESP_RST_DEEPSLEEP: return "deep-sleep wake";
     case ESP_RST_BROWNOUT:  return "brownout (supply voltage dropped)";
-    case ESP_RST_SDIO:      return "SDIO";
     default:                return "unknown";
   }
 }
 
 void plat_serial_begin() {
-#if !BRIDGE_NATIVE_USB
-  Serial.setRxBufferSize(SERIAL_RX_BUF);   // must precede Serial.begin(); the default 256-byte buffer is far too small for protocol frames
-  Serial.setTxBufferSize(SERIAL_TX_BUF);
-  Serial.begin(115200);
+#ifdef LINK_UART
+  LINK_UART.setRxBufferSize(SERIAL_RX_BUF);   // must precede begin(); the default 256-byte buffer is far too small for protocol frames
+  LINK_UART.setTxBufferSize(SERIAL_TX_BUF);
+  LINK_UART.begin(115200);
   // RX interrupt defaults to 120 of 128 FIFO bytes — ~53 µs margin at 1.5 Mbaud,
   // which a load spike can overrun and corrupt a frame. Fire at 64: same
   // throughput, 8x the margin.
-  Serial.setRxFIFOFull(64);
-  Serial.onReceive(proto_rx_kick);         // runs on the UART event task
-#else
+  LINK_UART.setRxFIFOFull(64);
+  LINK_UART.onReceive(proto_rx_kick);         // runs on the UART event task
+#endif
+#if BRIDGE_NATIVE_USB
   Serial.setRxBufferSize(SERIAL_RX_BUF);
 #if ARDUINO_USB_MODE                       // HW CDC (USB-Serial-JTAG); TinyUSB keeps the 1 ms poll
   // HW CDC's default 256 B TX ring drains well inside the 1 ms tx_task waits
@@ -73,7 +73,7 @@ void proto_log_hook_install() {
 #if BRIDGE_NATIVE_USB
   // ets_printf (Arduino log_x at CORE_DEBUG_LEVEL >= 1, early/ISR logs) goes to
   // ROM channel 2 = the USB-Serial-JTAG FIFO, the same raw injection. Leave it
-  // only channel 1, UART0, which is free on native-USB builds.
+  // only channel 1, UART0 — raw there, as on the classic chip.
   esp_rom_install_channel_putc(2, nullptr);
 #endif
 }

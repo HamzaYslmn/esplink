@@ -47,7 +47,6 @@ class I2C:
         return self._i2c.scan(self._bus)
 
     def writeto(self, address: int, buffer, *, start: int = 0, end=None) -> None:
-        end = len(buffer) if end is None else end
         self._i2c.write(address, bytes(buffer[start:end]), self._bus)
 
     def readfrom_into(self, address: int, buffer, *, start: int = 0, end=None) -> None:
@@ -58,7 +57,6 @@ class I2C:
     def writeto_then_readfrom(self, address: int, out_buffer, in_buffer, *,
                               out_start: int = 0, out_end=None,
                               in_start: int = 0, in_end=None) -> None:
-        out_end = len(out_buffer) if out_end is None else out_end
         in_end = len(in_buffer) if in_end is None else in_end
         data = self._i2c.write_read(address, bytes(out_buffer[out_start:out_end]),
                                     in_end - in_start, self._bus)
@@ -87,7 +85,6 @@ class SPI:
         self._host = host
         self._pins = (sck, miso, mosi)
         self._lock = threading.Lock()
-        self._frequency = 100_000
         self.configure()  # apply CircuitPython's default configuration: 100 kHz, mode 0
 
     def try_lock(self) -> bool:
@@ -110,7 +107,6 @@ class SPI:
         return self._frequency
 
     def write(self, buffer, *, start: int = 0, end=None) -> None:
-        end = len(buffer) if end is None else end
         self._spi.transfer(bytes(buffer[start:end]), host=self._host)
 
     def readinto(self, buffer, *, start: int = 0, end=None, write_value: int = 0) -> None:

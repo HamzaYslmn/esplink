@@ -64,13 +64,6 @@ _registry: dict[str, object] = dict(_BUNDLED)
 _entry_points_loaded = False
 
 
-def _reserved_names() -> frozenset[str]:
-    """Peripheral sub-API names (esp.gpio, esp.i2c, ...) a driver may not shadow."""
-    from ..bridge import Bridge
-
-    return frozenset(Bridge._SUBAPIS)
-
-
 def register_driver(name: str, cls: type, *, replace: bool = False) -> None:
     """Register driver ``cls`` under ``name`` so ``esp.<name>(...)`` builds it.
 
@@ -80,10 +73,12 @@ def register_driver(name: str, cls: type, *, replace: bool = False) -> None:
     with a built-in peripheral (``gpio``, ``i2c``, ...), or if it is not a
     valid public attribute name.
     """
+    from ..bridge import Bridge
+
     if not name.isidentifier() or name.startswith("_"):
         raise ValueError(
             f"driver name {name!r} must be a valid public attribute name")
-    if name in _reserved_names():
+    if name in Bridge._SUBAPIS:
         raise ValueError(
             f"{name!r} is a built-in peripheral (esp.{name}) and cannot be a "
             f"driver name")
@@ -93,16 +88,6 @@ def register_driver(name: str, cls: type, *, replace: bool = False) -> None:
             f"driver {name!r} is already registered ({driver_source(name)}); "
             f"pass replace=True to override it")
     _registry[name] = cls
-
-
-def _resolve(obj):
-    """Normalise a registry value (class / 'module:Class' / EntryPoint) to a class."""
-    if isinstance(obj, str):  # lazy bundled driver
-        mod, _, qual = obj.partition(":")
-        return getattr(importlib.import_module(mod), qual)
-    if isinstance(obj, _md.EntryPoint):  # discovered plugin
-        return obj.load()
-    return obj  # already a class / callable
 
 
 def get_driver(name: str):
@@ -116,11 +101,14 @@ def get_driver(name: str):
     if obj is None:
         _discover_entry_points()
         obj = _registry.get(name)
-    if obj is None:
-        return None
-    cls = _resolve(obj)
-    _registry[name] = cls  # cache the resolved class
-    return cls
+    if isinstance(obj, str):  # lazy bundled driver
+        mod, _, qual = obj.partition(":")
+        obj = getattr(importlib.import_module(mod), qual)
+    elif isinstance(obj, _md.EntryPoint):  # discovered plugin
+        obj = obj.load()
+    if obj is not None:
+        _registry[name] = obj  # cache the resolved class
+    return obj
 
 
 def _discover_entry_points() -> None:

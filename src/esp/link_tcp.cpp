@@ -148,12 +148,11 @@ bool link_tcp_begin(const char* ssid, const char* pass, const char* server,
     strlcpy(cfg_ssid, ssid, sizeof(cfg_ssid));
     strlcpy(cfg_pass, pass ? pass : "", sizeof(cfg_pass));
     strlcpy(cfg_srv, server ? server : "", sizeof(cfg_srv));
-    if (port) cfg_port = port;
   } else {
     load_config();  // provisioned earlier over USB/BLE (WIFI_LINK_SETUP)
     if (server && *server) strlcpy(cfg_srv, server, sizeof(cfg_srv));
-    if (port) cfg_port = port;
   }
+  if (port) cfg_port = port;
   if (!cfg_ssid[0]) {
     proto_log(2, "wifi link: no credentials (sketch args or WIFI_LINK_SETUP)");
     return false;
@@ -268,7 +267,7 @@ static void poll_dial() {
     if (fd < 0) { schedule_retry(); return; }
     set_nonblocking(fd);
     int r = lwip_connect(fd, (struct sockaddr*)&a, sizeof(a));
-    if (r == 0) { dial_fd = -1; adopt_peer(fd); return; }
+    if (r == 0) { adopt_peer(fd); return; }
     if (errno != EINPROGRESS) { lwip_close(fd); schedule_retry(); return; }
     dial_fd = fd;
     next_try_ms = millis() + 10000;  // connect deadline
@@ -437,22 +436,9 @@ uint8_t link_tcp_state() {
 uint16_t link_tcp_port() { return cfg_port; }
 uint32_t link_tcp_ip() { return armed ? (uint32_t)WiFi.localIP() : 0; }
 
-#else  // !BRIDGE_WIFI_LINK — stubs so the rest of the tree links unchanged
+#else  // !BRIDGE_WIFI_LINK — every other caller sits inside #if BRIDGE_WIFI_LINK
 
-bool link_tcp_begin(const char*, const char*, const char*, uint16_t, const char*) { return false; }
-void link_tcp_stop() {}
-bool link_tcp_enabled() { return false; }
-bool link_tcp_up() { return false; }
-bool link_tcp_authed() { return false; }
-void link_tcp_set_authed(bool) {}
-const char* link_tcp_password() { return ""; }
-uint32_t link_tcp_tx_errors() { return 0; }
-uint8_t link_tcp_state() { return 0; }
-uint16_t link_tcp_port() { return 0; }
-uint32_t link_tcp_ip() { return 0; }
-void link_tcp_poll() {}
-uint16_t link_tcp_write_chunk(const uint8_t*, uint16_t) { return 0; }
-uint16_t link_tcp_read(uint8_t*, uint16_t) { return 0; }
+bool link_tcp_enabled() { return false; }  // mod_wifi / mod_espnow radio guards
 
 #endif  // BRIDGE_WIFI_LINK
 #endif  // ARDUINO_ARCH_ESP32

@@ -14,13 +14,7 @@ from . import constants as C
 
 
 class Mcpwm:
-    """Complementary PWM pair with hardware deadtime (reached via ``esp.mcpwm``).
-
-        esp = esplink.connect()
-        esp.mcpwm.begin(pin_a=25, pin_b=26, freq=20_000, deadtime_ns=500)
-        esp.mcpwm.duty(35.0)   # percent on pin_a; pin_b is the inverse
-        esp.mcpwm.stop()
-    """
+    """Complementary PWM pair with hardware deadtime (``esp.mcpwm``; see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

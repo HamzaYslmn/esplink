@@ -14,7 +14,6 @@ from .transports import find_ports
 
 def _print_info(esp: Bridge) -> None:
     info = esp.info
-    assert info is not None
     fw = ".".join(map(str, info.fw_version))
     print(f"name      : {info.name or '(unnamed — set with `esplink set-name`)'}")
     print(f"mac       : {info.mac}")
@@ -215,10 +214,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_flash.add_argument("--baud", type=int, default=921600,
                          help="flash baud rate (default: 921600)")
     p_flash.add_argument("--erase", action="store_true",
-                         help="erase the whole flash before writing (clears NVS)")
+                         help="erase the whole flash before writing (clears NVS / stored name)")
     p_flash.add_argument("--firmware", help="flash this .bin/.uf2 instead of the bundled image")
     p_flash.add_argument("--chip", default="auto",
-                         help="board: esp32, esp32s3, promicro (default: auto, from the USB ID)")
+                         help="board: esp32, esp32s3, promicro (default: auto)")
     return ap
 
 

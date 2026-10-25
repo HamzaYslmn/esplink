@@ -8,7 +8,7 @@
 // SYS_INFO names the exact release (test_contract_sync.py enforces the lockstep).
 // PROTOCOL_VERSION above remains the hard compatibility gate.
 #define FW_VERSION_MAJOR 3
-#define FW_VERSION_MINOR 0
+#define FW_VERSION_MINOR 1
 #define FW_VERSION_PATCH 0
 
 // Frame (logical, pre-COBS):
@@ -17,7 +17,7 @@
 // crc16 = CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) over flags..payload.
 #define FLAG_EVENT 0x01  // async event (not a response)
 #define FLAG_ERROR 0x02  // response is an error; payload[0] = status
-#define FLAG_MORE  0x04  // reserved (fragmentation)
+// 0x04 was reserved for fragmentation and never used: retired, never reuse.
 
 #define MAX_PAYLOAD 2048
 #define NET_CHUNK   512   // max bytes per NET data event
@@ -45,12 +45,12 @@ enum Status : uint8_t {
 };
 
 // ---- capability bits (SYS_INFO.caps u32) ------------------------------------
+// Bits 1 (BLE, set on every build) and 5 (hall sensor, gone from IDF 5) are
+// retired: never reuse them, an old host still reads them.
 #define CAP_WIFI       (1UL << 0)
-#define CAP_BLE        (1UL << 1)
 #define CAP_BT_CLASSIC (1UL << 2)
 #define CAP_DAC        (1UL << 3)
 #define CAP_TOUCH      (1UL << 4)
-#define CAP_HALL       (1UL << 5)
 #define CAP_PSRAM      (1UL << 6)
 #define CAP_NATIVE_USB (1UL << 7)
 #define CAP_BLE_FW     (1UL << 8)   // firmware compiled with BLE support
@@ -66,7 +66,7 @@ enum Status : uint8_t {
 #define CAP_ETH        (1UL << 18)  // Ethernet (compile-time opt-in)
 #define CAP_CAM        (1UL << 19)  // camera (compile-time opt-in, needs PSRAM)
 #define CAP_MCPWM      (1UL << 20)  // complementary PWM pair with deadtime
-#define CAP_SLEEP      (1UL << 21)  // deep/light sleep (IRAM-gated off on classic+BLE)
+#define CAP_SLEEP      (1UL << 21)  // deep/light sleep (SYS_SLEEP)
 #define CAP_WIFI_LINK  (1UL << 22)  // bridge reachable over the Wi-Fi (TCP) transport
 
 // SYS_INFO caps assembly: `flag ? bit : 0` for a config.h BRIDGE_* flag, which
@@ -200,7 +200,7 @@ enum ChipModel : uint8_t {
 #define MCPWM_STOP      CMD(MOD_MCPWM, 0x03)
 
 // I2C
-#define I2C_INIT        CMD(MOD_I2C, 0x01)  // bus u8|sda u8|scl u8|freq u32 -> wire_buf u16 (>=0.3.0)
+#define I2C_INIT        CMD(MOD_I2C, 0x01)  // bus u8|sda u8|scl u8|freq u32 -> wire_buf u16
 #define I2C_SCAN        CMD(MOD_I2C, 0x02)  // bus u8 -> n u8|addr[n]
 #define I2C_WRITE       CMD(MOD_I2C, 0x03)  // bus u8|addr u8|data..
 #define I2C_READ        CMD(MOD_I2C, 0x04)  // bus u8|addr u8|len u8 -> data
@@ -381,7 +381,7 @@ enum ChipModel : uint8_t {
 
 #define OTA_CHUNK (MAX_PAYLOAD - 8)  // host chunk size per OTA_WRITE; firmware accepts up to MAX_PAYLOAD
 
-// CAM (compile-time opt-in: BRIDGE_ENABLE_CAM; supported on esp32/s2/s3 with PSRAM).
+// CAM (compile-time opt-in: BRIDGE_ENABLE_CAM; ESP32 and S3, with PSRAM).
 // Pin assignments and sensor property ids are defined in Python:
 // see esplink.camera board presets.
 #define CAM_INIT        CMD(MOD_CAM, 0x01) // pwdn i8|reset i8|xclk i8|siod i8|sioc i8|d7..d0 i8[8]|

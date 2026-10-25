@@ -62,10 +62,6 @@ static uint16_t crc16_update(uint16_t crc, const uint8_t* data, uint16_t len) {
   return crc;
 }
 
-uint16_t crc16_ccitt(const uint8_t* data, uint16_t len) {
-  return crc16_update(0xFFFF, data, len);
-}
-
 // ---- COBS (Consistent Overhead Byte Stuffing) -------------------------------
 // Incremental encoder: header/payload/CRC fed straight to the output in pieces,
 // so no 2 KB scratch frame. out needs len + len/254 + 1 bytes (worst case).
@@ -220,11 +216,28 @@ static void load_stream_frame(TxStream& s) {
   s.len = n;
 }
 
+#if BRIDGE_UART0_LINK
+// The wired link is whichever port sent the last valid frame. UART0 until then:
+// a native-USB host asks first and switches it, a UART host waits for the boot
+// banner, which must land on UART0.
+// ponytail: one wired host at a time; two at once need a TxStream per port.
+static std::atomic<bool> wired_uart0{true};
+static bool tx_uart0 = true;  // tx_task: port of the frame in flight, latched per frame
+#define WIRED_OUT (tx_uart0 ? (Print&)Serial0 : (Print&)Serial)
+#else
+#define WIRED_OUT Serial
+#endif
+
 // Advance one stream without blocking; returns true if any bytes moved.
 static bool advance_usb_stream() {
-  if (tx_usb.len == 0) load_stream_frame(tx_usb);
+  if (tx_usb.len == 0) {
+    load_stream_frame(tx_usb);
+#if BRIDGE_UART0_LINK
+    tx_uart0 = wired_uart0;
+#endif
+  }
   if (tx_usb.len == 0) return false;
-  int room = Serial.availableForWrite();
+  int room = WIRED_OUT.availableForWrite();
   if (room <= 0) return false;  // TX ring full: the UART drains it at line rate
   uint16_t n = tx_usb.len - tx_usb.pos;
   if ((int)n > room) n = (uint16_t)room;
@@ -235,7 +248,7 @@ static bool advance_usb_stream() {
   tud_cdc_write_flush();
   if (n == 0) return false;
 #else
-  Serial.write(tx_usb.wire + tx_usb.pos, n);  // fits the ring: never blocks
+  WIRED_OUT.write(tx_usb.wire + tx_usb.pos, n);  // fits the ring: never blocks
 #endif
   tx_usb.pos += n;
   if (tx_usb.pos == tx_usb.len) tx_usb.len = 0;
@@ -305,12 +318,18 @@ static void tx_task(void*) {
     if (!moved) {
       if (tx_streams_idle()) {
         // Fully idle: sleep until enqueue_frame notifies (latched, so a
-        // notify that races this wait is not lost). A latched notify returns
-        // at once without sleeping, so only a timeout resets the yield count.
-        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == 0) spins = 0;
+        // notify that races this wait is not lost). Only a take that really
+        // blocked proves the idle task ran, so only that resets the yield
+        // count — counting kicked wakes too forced a 1 ms sleep every 48 frames.
+        if (ulTaskNotifyTake(pdTRUE, 0) == 0) {
+          ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+          spins = 0;
+        }
       } else {
         spins = 0;
-        vTaskDelay(1);  // a link is stalled (ring full / congested): poll soon
+        // A link is stalled (ring full / congested): retry on the next tick,
+        // or sooner when a new frame or a drained ring (proto_tx_kick) wakes us.
+        ulTaskNotifyTake(pdTRUE, 1);
       }
     } else if (++spins >= RX_YIELD_EVERY) {
       spins = 0;
@@ -351,12 +370,39 @@ void proto_log_heap(const char* stage) {
   proto_log(1, msg);
 }
 
-void proto_tx_flush() {
-  // Drain the SERIAL stream only — callers (the baud switch) care about bytes
-  // still headed for the UART; the BLE stream is unaffected by a baud change.
-  while (uxQueueMessagesWaiting(tx_usb.q) > 0 || tx_usb.len) vTaskDelay(1);
-  Serial.flush();
+// SYS_INFO / SYS_READY payload. Everything but the chip-specific middle is
+// common: proto|fw[3]|model, then the name as the tail, unlength-prefixed (the
+// frame already carries the length).
+uint16_t sys_build_info(uint8_t* out) {
+  uint8_t* p = out;
+  *p++ = PROTOCOL_VERSION;
+  *p++ = FW_VERSION_MAJOR;
+  *p++ = FW_VERSION_MINOR;
+  *p++ = FW_VERSION_PATCH;
+  *p++ = BRIDGE_CHIP;
+  p = sys_info_body(p);
+  const char* name = sys_device_name();
+  uint8_t nlen = strlen(name);
+  memcpy(p, name, nlen);
+  return p + nlen - out;
 }
+
+void proto_tx_flush() {
+  // Drain the serial stream — the baud switch cares about bytes still headed
+  // for the UART; the BLE stream is unaffected by a baud change.
+  while (uxQueueMessagesWaiting(tx_usb.q) > 0 || tx_usb.len) vTaskDelay(1);
+  WIRED_OUT.flush();
+#if BRIDGE_WIFI_LINK
+  // ...and the TCP stream while its peer is up, bounded (~0.5 s): WIFI_LINK_STOP
+  // sent over TCP queues its OK there, and the link it stops would eat it.
+  for (int i = 0; i < 500 && tx_net && link_tcp_up()
+       && (uxQueueMessagesWaiting(tx_net->q) > 0 || tx_net->len); i++) vTaskDelay(1);
+#endif
+}
+
+#if BRIDGE_UART0_LINK
+bool proto_wired_on_uart0() { return wired_uart0; }
+#endif
 
 uint32_t proto_dropped_events() { return dropped; }
 
@@ -476,11 +522,11 @@ static void dispatch(uint8_t origin, uint8_t seq, uint16_t cmd,
   }
 }
 
-// ---- per-link auth policy (see link.h) --------------------------------------
+// ---- per-link auth policy ---------------------------------------------------
 // USB is trusted (you are holding the cable); BLE and TCP must pass SYS_AUTH.
-bool link_needs_auth(uint8_t link) { return link == LINK_BLE || link == LINK_TCP; }
+static bool link_needs_auth(uint8_t link) { return link == LINK_BLE || link == LINK_TCP; }
 
-bool link_authed(uint8_t link) {
+static bool link_authed(uint8_t link) {
   if (link == LINK_BLE) return link_ble_authed();
 #if BRIDGE_WIFI_LINK
   if (link == LINK_TCP) return link_tcp_authed();
@@ -488,14 +534,14 @@ bool link_authed(uint8_t link) {
   return true;  // USB
 }
 
-void link_set_authed(uint8_t link, bool v) {
+static void link_set_authed(uint8_t link, bool v) {
   if (link == LINK_BLE) link_ble_set_authed(v);
 #if BRIDGE_WIFI_LINK
   else if (link == LINK_TCP) link_tcp_set_authed(v);
 #endif
 }
 
-const char* link_auth_password(uint8_t link) {
+static const char* link_auth_password(uint8_t link) {
 #if BRIDGE_WIFI_LINK
   if (link == LINK_TCP) return link_tcp_password();
 #endif
@@ -509,7 +555,7 @@ static bool password_ok(uint8_t origin, const uint8_t* p, uint16_t len) {
   uint16_t pwlen = strlen(pw);
   uint8_t diff = (len == pwlen) ? 0 : 1;
   for (uint16_t i = 0; i < len; i++) diff |= p[i] ^ (uint8_t)pw[i % (pwlen ? pwlen : 1)];
-  return diff == 0;  // empty BRIDGE_PASSWORD = open access
+  return diff == 0;  // empty password = open access
 }
 
 // Runs before normal dispatch because it is a link-layer concern: replies must
@@ -553,25 +599,37 @@ uint32_t link_serial_rx_errors() { return serial_rx_errors; }
 // of Serial, and pin_is_link() (modules.h) refuses to hand its pins to a bus.
 static std::atomic<bool> usb_link_seen{false};
 bool proto_usb_link_active() { return usb_link_seen; }
+#if BRIDGE_UART0_LINK
+static RxState rx_uart0;
+static bool rx_from_uart0;  // rx_task: the wired port being pumped right now
+static std::atomic<bool> uart0_link_seen{false};
+bool proto_uart0_link_active() { return uart0_link_seen; }
+#endif
 
 // Decode in place (no scratch buffer) and dispatch. Safe to refill the
 // accumulator on return: inline handlers run to completion, slow_enqueue copies.
 static void decode_and_dispatch(uint8_t origin, uint8_t* enc, uint16_t enclen) {
   uint16_t n = cobs_decode(enc, enclen, enc);
-  if (n < 6 || crc16_ccitt(enc, n - 2) != read_be16(enc + n - 2)) {
+  if (n < 6 || crc16_update(0xFFFF, enc, n - 2) != read_be16(enc + n - 2)) {
     // Corrupted frame: drop it and let the host retry on timeout.
     if (origin == LINK_USB) serial_rx_errors++;
     return;
   }
-  if (origin == LINK_USB) usb_link_seen = true;
+  if (origin == LINK_USB) {
+#if BRIDGE_UART0_LINK
+    wired_uart0 = rx_from_uart0;  // set before dispatch: this frame's reply follows it
+    (rx_from_uart0 ? uart0_link_seen : usb_link_seen) = true;
+#else
+    usb_link_seen = true;
+#endif
+  }
   uint8_t seq = enc[1];
   uint16_t cmd = read_be16(enc + 2);
   if (handle_auth(origin, seq, cmd, enc + 4, n - 6)) return;
   dispatch(origin, seq, cmd, enc + 4, n - 6);
 }
 
-static void pump_link_bytes(uint8_t origin, const uint8_t* chunk, int n) {
-  RxState* rxp = rx_for(origin);
+static void pump_link_bytes(uint8_t origin, RxState* rxp, const uint8_t* chunk, int n) {
   if (!rxp) return;  // link torn down mid-drain
   RxState& rx = *rxp;
   int i = 0;
@@ -598,28 +656,39 @@ static void pump_link_bytes(uint8_t origin, const uint8_t* chunk, int n) {
   }
 }
 
+// Read in blocks rather than one byte at a time. Reading only as many bytes as
+// available() reports keeps the call non-blocking on both HardwareSerial (UART)
+// and HWCDC (native USB).
+template <class Port>
+static bool pump_wired(Port& port, RxState* rx, uint8_t* chunk, int cap) {
+  bool any = false;
+  for (;;) {
+    int avail = port.available();
+    if (avail <= 0) break;
+    if (avail > cap) avail = cap;
+    int n = port.read(chunk, avail);
+    if (n <= 0) break;
+    any = true;
+    pump_link_bytes(LINK_USB, rx, chunk, n);
+  }
+  return any;
+}
+
 // Returns true if any bytes were processed; rx_task yields briefly when false.
 static bool proto_pump_rx() {
   uint8_t chunk[256];  // rx_task stack (8 KB) — keeps 256 B out of BSS
-  bool any = false;
-  for (;;) {
-    // Read in blocks rather than one byte at a time. Reading only as many
-    // bytes as available() reports keeps the call non-blocking on both
-    // HardwareSerial (UART) and HWCDC (native USB).
-    int avail = Serial.available();
-    if (avail <= 0) break;
-    if (avail > (int)sizeof(chunk)) avail = sizeof(chunk);
-    int n = Serial.read(chunk, avail);
-    if (n <= 0) break;
-    any = true;
-    pump_link_bytes(LINK_USB, chunk, n);
-  }
+  bool any = pump_wired(Serial, rx_for(LINK_USB), chunk, sizeof(chunk));
+#if BRIDGE_UART0_LINK
+  rx_from_uart0 = true;
+  any = pump_wired(Serial0, &rx_uart0, chunk, sizeof(chunk)) || any;
+  rx_from_uart0 = false;
+#endif
 #if BRIDGE_BLE
   for (;;) {
     uint16_t n = link_ble_read(chunk, sizeof(chunk));
     if (n == 0) break;
     any = true;
-    pump_link_bytes(LINK_BLE, chunk, n);
+    pump_link_bytes(LINK_BLE, rx_for(LINK_BLE), chunk, n);
   }
 #endif
 #if BRIDGE_WIFI_LINK
@@ -627,7 +696,7 @@ static bool proto_pump_rx() {
     uint16_t n = link_tcp_read(chunk, sizeof(chunk));
     if (n == 0) break;
     any = true;
-    pump_link_bytes(LINK_TCP, chunk, n);
+    pump_link_bytes(LINK_TCP, rx_for(LINK_TCP), chunk, n);
   }
 #endif
   return any;
@@ -635,6 +704,17 @@ static bool proto_pump_rx() {
 
 void proto_rx_kick() {
   if (rx_task_h) xTaskNotifyGive(rx_task_h);  // latched: a kick mid-pump is not lost
+}
+
+#ifndef IRAM_ATTR
+#define IRAM_ATTR  // nRF: no flash-cache window to survive
+#endif
+void IRAM_ATTR proto_rx_kick_from_isr(BaseType_t* woken) {
+  if (rx_task_h) vTaskNotifyGiveFromISR(rx_task_h, woken);
+}
+
+void proto_tx_kick() {
+  if (tx_task_h) xTaskNotifyGive(tx_task_h);
 }
 
 static void rx_task(void*) {
@@ -647,9 +727,12 @@ static void rx_task(void*) {
     // edges, the secondary UART and TCP are still polled). Busy: still yield
     // every RX_YIELD_EVERY loops, or this prio-10 task starves idle and trips the WDT.
     // A pending kick makes the take return at once without blocking, so only
-    // a timed-out take (the task really slept) proves the idle task ran.
+    // a take that really blocked proves the idle task ran.
     if (!busy) {
-      if (ulTaskNotifyTake(pdTRUE, 1) == 0) spins = 0;
+      if (ulTaskNotifyTake(pdTRUE, 0) == 0) {
+        ulTaskNotifyTake(pdTRUE, 1);
+        spins = 0;
+      }
     } else if (++spins >= RX_YIELD_EVERY) {
       spins = 0;
       vTaskDelay(1);
@@ -707,9 +790,9 @@ void proto_start() {
   // handlers on the radio core, RX + fast handlers on the app core, so reply N
   // transmits while command N+1 executes.
   xTaskCreatePinnedToCore(tx_task, "bridge_tx", TX_TASK_STACK, nullptr,
-                          TX_TASK_PRIO, &tx_task_h, TX_TASK_CORE);
+                          TX_TASK_PRIO, &tx_task_h, CORE_RADIO);
   xTaskCreatePinnedToCore(rx_task, "bridge_rx", RX_TASK_STACK, nullptr,
-                          RX_TASK_PRIO, &rx_task_h, RX_TASK_CORE);
+                          RX_TASK_PRIO, &rx_task_h, CORE_APP);
   xTaskCreatePinnedToCore(slow_task, "bridge_slow", SLOW_TASK_STACK, nullptr,
-                          SLOW_TASK_PRIO, &slow_task_h, SLOW_TASK_CORE);
+                          SLOW_TASK_PRIO, &slow_task_h, CORE_RADIO);
 }

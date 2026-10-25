@@ -12,9 +12,6 @@
 #include "esplink/modules.h"
 #include "esplink/radio.h"
 #include "esplink/link.h"
-
-#if BRIDGE_HAS_ESPNOW
-
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
@@ -226,10 +223,4 @@ void espnow_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else  // !BRIDGE_HAS_ESPNOW
-
-UNSUPPORTED_STUB(espnow_handle, MOD_ESPNOW)
-
-#endif  // BRIDGE_HAS_ESPNOW
 #endif  // ARDUINO_ARCH_ESP32

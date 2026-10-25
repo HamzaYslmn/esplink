@@ -11,8 +11,6 @@
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
 
-#if BRIDGE_HAS_ONEWIRE
-
 // The one thing that differs per arch: ESP's portENTER_CRITICAL needs a portMUX,
 // vanilla FreeRTOS on nRF uses the plain Arduino pair.
 #if defined(ARDUINO_ARCH_ESP32)
@@ -109,9 +107,3 @@ void onewire_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else
-
-UNSUPPORTED_STUB(onewire_handle, MOD_ONEWIRE)
-
-#endif  // BRIDGE_HAS_ONEWIRE

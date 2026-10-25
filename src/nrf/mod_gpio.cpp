@@ -4,15 +4,9 @@
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
 
-#ifdef PINS_COUNT
-  #define BRIDGE_PIN_COUNT PINS_COUNT
-#else
-  #define BRIDGE_PIN_COUNT 48
-#endif
+static uint8_t pin_mode[PINS_COUNT];  // last mode set via SET_MODE (0xFF = unknown)
 
-static uint8_t pin_mode[BRIDGE_PIN_COUNT];  // last mode set via SET_MODE (0xFF = unknown)
-
-static bool is_valid_pin(uint8_t pin) { return pin < BRIDGE_PIN_COUNT; }
+static bool is_valid_pin(uint8_t pin) { return pin < PINS_COUNT; }
 
 uint32_t nrf_pwm_read(uint8_t pin, uint32_t* duty);  // mod_pwm.cpp
 
@@ -31,6 +25,7 @@ static void edge_common(uint8_t s) {
   EdgeRaw e = { slots[s].pin, (uint8_t)digitalRead(slots[s].pin), (uint32_t)micros() };
   BaseType_t hpw = pdFALSE;
   xQueueSendFromISR(edgeq, &e, &hpw);
+  proto_rx_kick_from_isr(&hpw);  // report it now, not on rx_task's next tick
   portYIELD_FROM_ISR(hpw);  // vanilla FreeRTOS: macro takes the woken flag
 }
 static void tramp0() { edge_common(0); }
@@ -116,7 +111,7 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       NEED(16);
       uint64_t mask = ((uint64_t)read_be32(p) << 32) | read_be32(p + 4);
       uint64_t vals = ((uint64_t)read_be32(p + 8) << 32) | read_be32(p + 12);
-      for (uint8_t pin = 0; pin < BRIDGE_PIN_COUNT && pin < 64; pin++)
+      for (uint8_t pin = 0; pin < PINS_COUNT; pin++)
         if ((mask >> pin) & 1 && is_valid_pin(pin))
           digitalWrite(pin, ((vals >> pin) & 1) ? HIGH : LOW);
       proto_reply_ok(seq, cmd);
@@ -125,7 +120,7 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
 
     case 0x05: {  // READ_ALL -> levels u64
       uint64_t levels = 0;
-      for (uint8_t pin = 0; pin < BRIDGE_PIN_COUNT && pin < 64; pin++)
+      for (uint8_t pin = 0; pin < PINS_COUNT; pin++)
         if (is_valid_pin(pin) && digitalRead(pin)) levels |= (1ULL << pin);
       uint8_t buf[8];
       write_be32(buf, (uint32_t)(levels >> 32));
@@ -174,10 +169,10 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
     }
 
     case 0x09: {  // DUMP: every bridge-configured or PWM-driven pin
-      uint8_t buf[BRIDGE_PIN_COUNT * 11 + 1];
+      uint8_t buf[PINS_COUNT * 11 + 1];
       uint16_t n = 1;
       uint8_t count = 0;
-      for (uint8_t pin = 0; pin < BRIDGE_PIN_COUNT; pin++) {
+      for (uint8_t pin = 0; pin < PINS_COUNT; pin++) {
         uint32_t duty, freq = nrf_pwm_read(pin, &duty);
         if (pin_mode[pin] == 0xFF && freq == 0) continue;  // untouched: skip
         buf[n++] = pin;

@@ -34,13 +34,13 @@ class _Async:
         attr = getattr(self._target, name)
         # Callable first: Gpio.watch is a method that shares its name with the
         # esp.watch sub-API. Only the Bridge itself hands out sub-APIs.
-        if not callable(attr) and isinstance(self._target, Bridge) and name in Bridge._SUBAPIS:
-            return _Async(attr)
         if callable(attr):
             @functools.wraps(attr)
             async def call(*args, **kwargs):
                 return await asyncio.to_thread(attr, *args, **kwargs)
             return call
+        if isinstance(self._target, Bridge) and name in Bridge._SUBAPIS:
+            return _Async(attr)
         return attr
 
 

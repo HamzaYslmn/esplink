@@ -31,9 +31,7 @@ from ..i2c import bind_i2c
 
 import time
 
-POWER_DOWN = 0x00
 POWER_ON = 0x01
-RESET = 0x07
 
 CONT_HIRES = 0x10
 CONT_HIRES2 = 0x11
@@ -54,7 +52,6 @@ class BH1750:
             raise ValueError(f"BH1750 address {address:#04x} invalid "
                              f"(0x23 with ADDR low, 0x5C with ADDR high)")
         self._i2c, self._addr, self._bus = bind_i2c(bridge, address, bus=bus, sda=sda, scl=scl)
-        self._mode = mode
         self.set_mode(mode)
 
     def _command(self, cmd: int) -> None:

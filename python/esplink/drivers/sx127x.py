@@ -50,6 +50,7 @@ _REG_IRQ_FLAGS = 0x12
 _REG_RX_NB_BYTES = 0x13
 _REG_MODEM_CONFIG_1 = 0x1D
 _REG_MODEM_CONFIG_2 = 0x1E
+_REG_MODEM_CONFIG_3 = 0x26
 _REG_PAYLOAD_LENGTH = 0x22
 _REG_SYNC_WORD = 0x39
 _REG_VERSION = 0x42          # reads 0x12 on SX1276 silicon
@@ -87,13 +88,11 @@ class SX127x:
         self._spi = bridge.spi
         self._gpio = bridge.gpio
         self._cs = cs
-        self._reset = reset
-        self._dio0 = dio0
 
         # SX1276 is SPI mode 0, MSB-first. Pins left out are the board's (esp.pins);
         # init_spi=False keeps a bus already set up with esp.spi.init(...).
         if init_spi:
-            self._spi.init(freq=spi_freq, mode=0, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
+            self._spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq, mode=0)
 
         # Hardware reset: NRESET is active-low; hold low >=100us, then wait 5ms (datasheet 7.2.2).
         if reset is not None:
@@ -146,8 +145,10 @@ class SX127x:
     # ----- configuration -----
     def _set_modem_config(self, sf: int, bw: int, cr: int) -> None:
         """Program SF, bandwidth, coding rate and enable CRC."""
-        if not 6 <= sf <= 12:
-            raise ValueError(f"sf must be 6..12, got {sf}")
+        # SF6 works only in implicit-header mode with extra detection registers
+        # (datasheet 4.1.1.2); this driver uses explicit headers, so 7..12.
+        if not 7 <= sf <= 12:
+            raise ValueError(f"sf must be 7..12, got {sf}")
         if not 5 <= cr <= 8:
             raise ValueError(f"cr must be 5..8 (i.e. 4/5..4/8), got {cr}")
 
@@ -162,6 +163,12 @@ class SX127x:
         # RegModemConfig2 (0x1E): SpreadingFactor[7:4] | TxContinuousMode[3] |
         # RxPayloadCrcOn[2] | SymbTimeout[9:8]. Set SF and CRC-on (bit 2).
         self._write(_REG_MODEM_CONFIG_2, (sf << 4) | 0x04)
+
+        # RegModemConfig3 (0x26): LowDataRateOptimize[3] is mandated when the
+        # symbol time 2**SF / BW exceeds 16 ms (e.g. SF11/12 at 125 kHz) — it
+        # must match the peer; AgcAutoOn[2] lets the LNA gain track the AGC.
+        ldro = (1 << sf) * 1000 / bw >= 16
+        self._write(_REG_MODEM_CONFIG_3, (0x08 if ldro else 0x00) | 0x04)
 
     def set_frequency(self, hz: int) -> None:
         """Set the carrier frequency in Hz (e.g. 433/868/915 MHz)."""

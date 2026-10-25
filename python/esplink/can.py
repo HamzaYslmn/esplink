@@ -35,15 +35,7 @@ class Message:
 
 
 class Can:
-    """CAN/TWAI bus controller (reached via ``esp.can``).
-
-        esp = esplink.connect()
-        esp.can.begin(tx=21, rx=22, bitrate=500_000)
-        esp.can.send(0x123, b"\\x01\\x02")
-        msg = esp.can.recv(timeout=1.0)
-        print(esp.can.status())
-        esp.can.end()
-    """
+    """CAN/TWAI bus controller (``esp.can``; see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

@@ -41,14 +41,7 @@ PRESETS: dict[str, dict] = {
 
 
 class Eth:
-    """Wired Ethernet link (reached via ``esp.eth``; firmware opt-in).
-
-        esp = esplink.connect()
-        esp.eth.begin("wt32-eth01")          # board preset
-        ip = esp.eth.wait_for_ip()           # block for DHCP lease
-        print(esp.eth.status())
-        esp.eth.end()
-    """
+    """Wired Ethernet link (``esp.eth``; firmware opt-in, see module doc)."""
 
     def __init__(self, bridge):
         self._b = bridge

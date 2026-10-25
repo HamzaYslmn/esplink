@@ -51,10 +51,7 @@ static void send_closed_event(uint8_t handle, uint8_t reason) {
 }
 
 void net_poll() {
-  // This buffer lives on the stack (not in static BSS) deliberately.
-  // slow_task has an 8 KB stack, so 519 bytes here is comfortably within budget,
-  // and keeping it off the BSS leaves that RAM available for the heap —
-  // Wi-Fi + BLE coexistence leaves very little heap to spare.
+  // On slow_task's 8 KB stack, not BSS: Wi-Fi + BLE leave little heap to spare.
   uint8_t buf[1 + 6 + NET_CHUNK];  // worst case: UDP header + chunk
   for (uint8_t i = 0; i < NET_MAX_SOCKETS; i++) {
     Sock* s = &socks[i];
@@ -65,14 +62,12 @@ void net_poll() {
       if (avail > 0 && s->window_used < NET_WINDOW) {
         uint16_t room = NET_WINDOW - s->window_used;
         uint16_t n = avail > NET_CHUNK ? NET_CHUNK : (uint16_t)avail;
-        if (n > room) n = room;
-        if (n > 0) {
-          buf[0] = handle;
-          int got = s->tcp.read(buf + 1, n);
-          if (got > 0) {
-            s->window_used += got;
-            proto_send_event(NET_DATA_EVT, buf, 1 + got);
-          }
+        if (n > room) n = room;  // avail > 0 and room > 0, so n > 0
+        buf[0] = handle;
+        int got = s->tcp.read(buf + 1, n);
+        if (got > 0) {
+          s->window_used += got;
+          proto_send_event(NET_DATA_EVT, buf, 1 + got);
         }
       } else if (avail <= 0 && !s->tcp.connected()) {
         send_closed_event(handle, 0);
@@ -106,9 +101,7 @@ void net_poll() {
         write_be16(buf + 5, s->udp.remotePort());
         int rd = s->udp.read(buf + 7, n > NET_CHUNK ? NET_CHUNK : n);
         if (rd > 0) proto_send_event(NET_UDP_EVT, buf, 7 + rd);
-        s->udp.clear();  // discard any bytes beyond NET_CHUNK from this datagram.
-                         // Note: flush() no longer discards RX data in Arduino core 3.x,
-                         // so clear() is the correct call here.
+        s->udp.clear();  // drop the datagram's tail past NET_CHUNK (core 3.x: flush() no longer does)
       }
     }
   }

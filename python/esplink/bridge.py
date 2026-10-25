@@ -9,6 +9,7 @@ import queue
 import struct
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 
 from . import constants as C
@@ -67,18 +68,12 @@ class Info:
     @property
     def ident(self) -> str:
         """What you would pass to ``Bridge()`` to get this board back: its name,
-        or its MAC when it hasn't been named. Print this rather than the MAC —
-        it's the string that actually selects the board."""
+        or its MAC when it hasn't been named."""
         return self.name or self.mac
 
     @classmethod
     def parse(cls, payload: bytes) -> Info:
-        """Decode a SYS_INFO payload into an :class:`Info` (used at handshake).
-
-        The name is simply the rest of the payload — the frame already carries
-        the length, so it needs no length byte of its own. Firmware that sends
-        no name yields "".
-        """
+        """Decode a SYS_INFO payload; the name is the rest of the payload."""
         if len(payload) < 18:
             raise ProtocolError(f"short SYS_INFO payload: {len(payload)} bytes")
         proto, maj, mnr, pat, model, rev = struct.unpack_from(">6B", payload)
@@ -100,21 +95,13 @@ def _norm_mac(mac: str) -> str:
 
 def _is(target: str, name: str, mac: str) -> bool:
     """Does this board answer to ``target`` — its stored name, or its MAC?
-
-    The whole of identity matching. Used twice: on an advertisement or discovery
-    reply before connecting, and on SYS_INFO after — the authoritative one, since
-    a broadcast is untrusted input. Whichever halves a link publishes arrive in
-    full, so there is no prefix matching and no special case per link.
-    """
+    Used on an advert / discovery reply before connecting, and on SYS_INFO after
+    (the authoritative one: a broadcast is untrusted input)."""
     return target == name or _norm_mac(target) == _norm_mac(mac)
 
 
 def _targets(name) -> tuple[str, ...] | None:
-    """The selector as a tuple of targets: one board, or a list of them.
-
-    ``Bridge`` and ``Bridge.all`` share this, so every filter downstream is the
-    same loop. ``None`` means "no filter" — any board will do.
-    """
+    """The selector as a tuple of targets; ``None`` means any board."""
     if name is None:
         return None
     out = (name,) if isinstance(name, str) else tuple(name)
@@ -141,16 +128,11 @@ class _Pending:
         self.direct = direct
 
 
-# Which Bridge() keywords decide *which boards exist*, as opposed to how each
-# link is then driven. _connect_many() forwards only these to _candidates().
-_ENUM_KWARGS = ("transport", "port", "host", "tcp_port", "name", "ble", "wifi",
-                "baud", "reset_on_open")
-
-
 def _candidates(*, transport=None, port=None, host=None, tcp_port, name=None,
-                ble=None, wifi=False, baud=115200, reset_on_open=True):
-    """Every board matching these filters, as (factory, label, usb_chip, ident)
-    tuples, best link first — **yielded lazily, one link family at a time**.
+                ble=None, wifi=False, baud=115200, reset_on_open=True, **_):
+    """Every board matching these filters, as (factory, label, ident) tuples,
+    best link first — **yielded lazily, one link family at a time**. Keywords
+    that only drive a link once open (password, timeout, ...) are ignored.
 
     The single enumeration behind both arities: :class:`Bridge` probes this and
     stops at the first board that handshakes, while a :class:`BridgeSet` opens
@@ -158,27 +140,24 @@ def _candidates(*, transport=None, port=None, host=None, tcp_port, name=None,
 
     Lazy because finding boards is not free: a Bluetooth scan costs up to 15
     seconds when nothing is advertising, and the LAN sweep a broadcast. A plain
-    ``Bridge()`` with a cable plugged in never reaches either — it takes the
-    first serial port that answers and the scan is never started. Anything that
-    wants the whole desk just iterates to the end and pays for all of it.
+    ``Bridge()`` with a cable plugged in never reaches either.
 
     ``ident`` is the board's identity when the enumeration already knows it —
     Bluetooth and Wi-Fi both name the board before you connect — and ``None``
     for a serial port, which says nothing about who is on the other end.
     """
     if transport is not None:
-        yield (lambda t=transport: t, "transport",
-               getattr(transport, "usb_chip", None), None)
+        yield lambda t=transport: t, "transport", None
         return
     if host is not None:
         yield (lambda h=host, p=tcp_port: TcpTransport(h, p),
-               f"{host}:{tcp_port}", None, None)
+               f"{host}:{tcp_port}", None)
         return
     if port is not None:
         chip = next((p.usb_chip for p in find_ports() if p.device == port), None)
         yield (lambda p=port, c=chip: SerialTransport(p, baud, usb_chip=c,
                                                       reset=reset_on_open),
-               port, chip, None)
+               port, None)
         return
 
     # A truthy transport flag *pins* that link: wifi=True is Wi-Fi only, ble=True
@@ -202,7 +181,7 @@ def _candidates(*, transport=None, port=None, host=None, tcp_port, name=None,
             yield (lambda p=p: SerialTransport(p.device, baud,
                                                usb_chip=p.usb_chip,
                                                reset=reset_on_open),
-                   p.device, p.usb_chip, None)
+                   p.device, None)
     if ble is not False:                # None (Bluetooth next) or True (only)
         try:
             for c in _ble_candidates(want):
@@ -211,10 +190,6 @@ def _candidates(*, transport=None, port=None, host=None, tcp_port, name=None,
         except NoDeviceError:
             if ble:
                 raise                   # Bluetooth only: nothing else to try
-        except ImportError:
-            if ble:
-                raise
-            log.debug("Bluetooth unavailable (pip install bleak); using USB serial")
     if not found and ble is None:
         # Nothing on a cable and nothing in radio range: the board may still be
         # on the network. Costs a one-second broadcast, and only here.
@@ -241,7 +216,7 @@ def _wifi_candidates(want: tuple[str, ...] | None, tcp_port: int):
     devs = [d for d in find_wifi_devices(port=tcp_port or C.BRIDGE_LINK_PORT)
             if _wanted(want, d)]
     return [(lambda d=d: TcpTransport(d.host, d.port),
-             f"wifi {d.host}:{d.port}", None, d.ident) for d in devs]
+             f"wifi {d.host}:{d.port}", d.ident) for d in devs]
 
 
 def _ble_candidates(want: tuple[str, ...] | None):
@@ -253,12 +228,16 @@ def _ble_candidates(want: tuple[str, ...] | None):
     # OS's handle for the radio — a CoreBluetooth UUID on macOS, and elsewhere
     # the Bluetooth MAC, which is not the base MAC the firmware reports.
     def matches(d) -> bool:
-        return _wanted(want, d)
+        # A named board advertises its name, not its MAC. Its radio address is
+        # the base MAC + 0..3 on ESP32 (S3: +1, classic: +2), so a MAC target
+        # still matches on the first advert; the post-connect check confirms.
+        return _wanted(want, d) or any(_mac_near(t, d.address) for t in want or ())
 
     # Fast path: stop scanning the moment a matching bridge appears instead of
     # waiting out the whole discover() window, so the common case connects in
-    # well under a second. A full scan is the fallback.
-    devs = find_ble_devices_fast(matches)
+    # well under a second. A full scan is the fallback. A named target needs no
+    # sibling window: there is one board it can be.
+    devs = find_ble_devices_fast(matches, settle=0 if want else 0.4)
     if not devs:
         every = find_ble_devices()
         devs = [d for d in every if matches(d)]
@@ -277,8 +256,17 @@ def _ble_candidates(want: tuple[str, ...] | None):
         raise NoDeviceError(
             f"no bridge{what} found over Bluetooth — is the board powered, "
             f"in range, and flashed with BRIDGE_BLE_LINK enabled?")
-    return [(lambda d=d: BleTransport(d.address),
-             f"ble {d.ident or d.address}", None, d.ident) for d in devs]
+    return [(lambda d=d: BleTransport(d.address, device=d.device),
+             f"ble {d.ident or d.address}", d.ident) for d in devs]
+
+
+def _mac_near(target: str, address: str) -> bool:
+    """Is `address` (an OS Bluetooth address) 0..3 above the MAC `target`?"""
+    t, a = (s.replace(":", "").replace("-", "").lower() for s in (target, address))
+    try:
+        return len(t) == len(a) == 12 and 0 <= int(a, 16) - int(t, 16) <= 3
+    except ValueError:      # a name, or a macOS UUID address
+        return False
 
 
 class Bridge:
@@ -299,11 +287,8 @@ class Bridge:
     Peripherals are lazy sub-APIs (``esp.gpio``, ``esp.i2c``, ... see _SUBAPIS).
     """
 
-    # Lazily-created sub-APIs (see __getattr__ / _SUBAPIS). Declared at type-check
-    # time only — these are NOT real class attributes (no assignment), so
-    # __getattr__ still builds them on demand — but they let an editor resolve
-    # ``esp.gpio`` -> Gpio, ``esp.watch`` -> Watch, ... and surface each method's
-    # signature and docstring instead of showing "Unknown".
+    # For editors only: annotations, not attributes, so __getattr__ still builds
+    # each sub-API on demand while ``esp.gpio`` resolves to Gpio.
     if TYPE_CHECKING:
         gpio: Gpio
         adc: Adc
@@ -359,7 +344,6 @@ class Bridge:
         retries: int = 1,
         transport=None,
     ):
-        # One board, always; Bridge.all() is the plural path.
         self.timeout = timeout
         # Guards lazy sub-API creation in __getattr__ so two threads that first
         # touch e.g. esp.gpio at once can't both build (and leak) a sub-API.
@@ -369,23 +353,21 @@ class Bridge:
         # constants.NON_IDEMPOTENT).
         self.retries = retries
         self.info: Info | None = None
+        # Line rate the board booted at / runs at now; differ once upgraded.
+        self._baud_base = self._baud_now = None
 
-        target = name
-        if isinstance(target, list):
-            # Only Bridge.all() fans out, and it drives each board by transport=,
-            # so a list reaching the single-board path came from a caller who
-            # meant the plural spelling.
+        if isinstance(name, list):
             raise TypeError(f"Bridge() connects to one board; for several use "
-                            f"Bridge.all({target!r})")
-        want = _targets(target)
+                            f"Bridge.all({name!r})")
+        want = _targets(name)
         # Probing means "this list was discovered, so a dud is just the wrong
         # guess — try the next one". A pinned transport/port/host is one
         # candidate the caller chose, so its failure is the answer, not a step.
         probing = transport is None and port is None and host is None
         errors: list[str] = []
-        for factory, label, chip, _ident in _candidates(
+        for factory, label, _ident in _candidates(
                 transport=transport, port=port, host=host, tcp_port=tcp_port,
-                name=target, ble=ble, wifi=wifi, baud=baud,
+                name=name, ble=ble, wifi=wifi, baud=baud,
                 reset_on_open=reset_on_open):
             self._reset_state()
             if probing:
@@ -403,7 +385,6 @@ class Bridge:
                     self._handshake(reset_on_open=False)
                 else:
                     self._handshake(reset_on_open)
-                assert self.info is not None
                 # Re-checked over the link on purpose: BLE adverts and Wi-Fi
                 # discovery replies are broadcasts, i.e. untrusted input, and
                 # SYS_INFO is the board answering for itself.
@@ -504,36 +485,28 @@ class Bridge:
     def _handshake(self, reset_on_open: bool) -> None:
         # Opening the serial port auto-resets the board via DTR/RTS, so wait for
         # the SYS_READY banner; if it doesn't arrive, pulse a manual reset, then
-        # fall back to polling SYS_INFO (handles boards where the auto-reset
-        # circuit is disabled or absent). The longer wait when we did NOT ask for
-        # a reset is not about the banner — a running board sends none — but
-        # settling time: measured on a CP210x DevKit, it answers nothing for the
-        # first couple of seconds after the port opens, and polling sooner just
-        # burns the retries.
-        # Native USB (S3/C3/... USB-Serial-JTAG) is the exception: nothing reset
-        # the board, so there is no banner to wait for — ask right away — and
-        # DTR/RTS are its boot-strap and EN pins, so a reset pulse can park it in
-        # the ROM downloader. Never pulse those.
+        # fall back to polling SYS_INFO (boards without an auto-reset circuit).
+        # The longer wait when we did NOT reset is settling time, not a banner:
+        # measured on a CP210x DevKit, it answers nothing for the first couple
+        # of seconds after the port opens.
+        # Native USB (S3/C3 USB-Serial-JTAG): nothing reset the board, so ask
+        # right away — and never pulse: DTR/RTS are its boot-strap and EN pins,
+        # and a pulse can park it in the ROM downloader.
         native = getattr(self._t, "usb_chip", None) == "native"
         if (not native and not self._ready.wait(3.0 if not reset_on_open else 1.5)
                 and reset_on_open):
             self._t.pulse_reset()
             self._ready.wait(3.0)
 
-        if not self._ready.is_set():
-            for _ in range(3):
-                try:
-                    payload = self.request(C.SYS_INFO, timeout=1.0)
-                    self.info = Info.parse(payload)
-                    self._ready.set()
-                    break
-                except BridgeTimeoutError:
-                    continue
+        for _ in range(0 if self._ready.is_set() else 3):
+            with contextlib.suppress(BridgeTimeoutError):
+                self.info = Info.parse(self.request(C.SYS_INFO, timeout=1.0))
+                self._ready.set()
+                break
         if not self._ready.is_set():
             raise BridgeTimeoutError(
                 "no response from bridge firmware — is it flashed? (docs/FIRMWARE.md)"
             )
-        assert self.info is not None
         if self.info.protocol != C.PROTOCOL_VERSION:
             raise ProtocolError(
                 f"protocol mismatch: firmware speaks v{self.info.protocol}, "
@@ -542,16 +515,14 @@ class Bridge:
             )
 
     def _upgrade_baud(self, current: int, target: int | None) -> None:
-        assert self.info is not None
-        if C.Cap.NATIVE_USB in self.info.caps:
-            return  # USB CDC: baud is meaningless
         if target is None:
             target = C.UPGRADE_BAUD.get(getattr(self._t, "usb_chip", None), 921600)
         if not target or target == current:
             return
         # Remembered so reset() can follow the board back down to the boot
         # baud (the firmware doesn't persist SYS_SET_BAUD) and re-upgrade.
-        self._baud_base, self._baud_target = current, target
+        self._baud_base = self._baud_now = current
+        self._baud_target = target
         # Ladder down to the universally-safe 921600 if the target fails, so a
         # too-optimistic target costs one recovery cycle, not a 115200 link.
         for baud in dict.fromkeys((target, 921600)):
@@ -617,7 +588,7 @@ class Bridge:
         self._handshake(reset_on_open=True)
 
     def __repr__(self) -> str:
-        info = getattr(self, "info", None)
+        info = self.info
         if info is None:
             return f"<{type(self).__name__} connecting>"
         return (f"<{type(self).__name__} {info.chip.name} {info.ident} "
@@ -631,9 +602,8 @@ class Bridge:
         self._closing = True
         with self._flow:  # unblock any writer waiting on the in-flight window
             self._flow.notify_all()
-        base = getattr(self, "_baud_base", None)
-        if (base is not None and getattr(self, "_baud_now", base) != base
-                and self._ready.is_set()):
+        base = self._baud_base
+        if self._baud_now != base and self._ready.is_set():
             # Hand the fast link back. SYS_SET_BAUD isn't persisted, so the board
             # keeps the negotiated rate until it reboots — and the next session
             # that attaches *without* resetting it (Bridge.all(), or
@@ -788,21 +758,12 @@ class Bridge:
                     raise self._timeout_error(cmd, timeout) from None
                 log.warning(f"{C.cmd_name(cmd)}: no response, "
                             f"retrying ({attempt + 1}/{retries})")
-        raise self._timeout_error(cmd, timeout)  # unreachable: loop always returns/raises
 
     def _reserve_window(self, size: int) -> None:
-        """Wait for room in the firmware's RX window, then reserve `size` bytes.
-
-        The wait and the reservation happen under the same lock so that
-        concurrent callers can't all pass the capacity check before any of
-        them has incremented the counter (which would let them all write at
-        once and overflow the buffer).
-
-        The cap is the transport's `max_inflight` — sized to the firmware's
-        link RX buffer minus one max frame, so a pipelined burst can't
-        overflow it while a slow handler blocks the RX pump. After a wait
-        timeout the method falls through rather than deadlocking — the
-        firmware buffer can absorb one extra frame."""
+        """Wait for room under the transport's `max_inflight`, then reserve
+        `size` bytes — under one lock, so concurrent callers can't all pass the
+        check before any of them counts. After a wait timeout it falls through
+        rather than deadlocking: the firmware buffer absorbs one extra frame."""
         with self._flow:
             window = getattr(self._t, "max_inflight", None)
             if window and self._ready.is_set():
@@ -820,17 +781,54 @@ class Bridge:
             self._flow.notify_all()
 
     def _request_once(self, cmd: int, payload: bytes, timeout: float | None) -> bytes:
+        return self._collect(cmd, self._submit(cmd, payload), timeout)
+
+    def _pipeline(self, cmd: int, payloads, depth: int = 3):
+        """Yield the replies to `payloads`, keeping `depth` requests in flight.
+
+        For runs the firmware executes in order (FS_READ chunks share one file
+        cursor): requests leave in order, so replies come back in order, and a
+        chunk no longer waits out the previous chunk's round trip. No retries —
+        a re-sent read would skip ahead. Exiting early abandons what is left.
+        """
+        sent = deque()
+        try:
+            for payload in payloads:
+                if len(sent) >= depth:
+                    yield self._collect(cmd, sent.popleft())
+                sent.append(self._submit(cmd, payload))
+            while sent:
+                yield self._collect(cmd, sent.popleft())
+        finally:
+            for sub in sent:
+                self._abandon(sub)
+
+    def _submit(self, cmd: int, payload: bytes) -> tuple[int, int]:
         seq = self._alloc_seq()
-        p = self._pending[seq]
-        debug = log.isEnabledFor(logging.DEBUG)
-        if debug:
+        if log.isEnabledFor(logging.DEBUG):
             log.debug(f"-> {C.cmd_name(cmd)} seq={seq} ({len(payload)} B)")
         data = encode_frame(0, seq, cmd, payload)
         self._reserve_window(len(data))
-        replied = False
         try:
             with self._write_lock:
                 self._t.write(data)
+        except BaseException:
+            self._abandon((seq, len(data)))
+            raise
+        return seq, len(data)
+
+    def _abandon(self, sub: tuple[int, int]) -> None:
+        seq, size = sub
+        self._decr_window(size)
+        with self._pending_lock:
+            self._pending.pop(seq, None)
+
+    def _collect(self, cmd: int, sub: tuple[int, int], timeout: float | None = None) -> bytes:
+        seq, size = sub
+        p = self._pending[seq]
+        debug = log.isEnabledFor(logging.DEBUG)
+        replied = False
+        try:
             if not p.done.acquire(timeout=timeout if timeout is not None else self.timeout):
                 raise BridgeTimeoutError(f"no response for {C.cmd_name(cmd)}")
             if p.frame is None:
@@ -840,7 +838,7 @@ class Bridge:
             # so other threads' in-flight requests stay accounted) and clear any
             # fire-and-forget send() bytes written before it (the reply proves
             # the firmware consumed them).
-            self._decr_window(len(data), clear_send=True)
+            self._decr_window(size, clear_send=True)
             if debug:
                 log.debug(f"<- {C.cmd_name(cmd)} seq={seq} "
                           f"{'ERR' if p.frame.is_error else 'ok'} "
@@ -850,8 +848,8 @@ class Bridge:
                 raise RemoteError(status, cmd)
             return p.frame.payload
         finally:
-            if not replied:  # write failed or timed out — release the reserved window bytes
-                self._decr_window(len(data))
+            if not replied:  # timed out — release the reserved window bytes
+                self._decr_window(size)
             with self._pending_lock:
                 self._pending.pop(seq, None)
 
@@ -1027,8 +1025,8 @@ class Bridge:
         # The firmware boots back at the port-default baud (SYS_SET_BAUD is not
         # persisted) — follow it down or the READY event arrives as garbage,
         # then restore the fast link once the board is up.
-        base = getattr(self, "_baud_base", None)
-        upgraded = base is not None and getattr(self, "_baud_now", base) != base
+        base = self._baud_base
+        upgraded = self._baud_now != base
         if upgraded:
             self._t.set_baudrate(base)
             self._baud_now = base
@@ -1054,8 +1052,7 @@ class Bridge:
                 f"name must be at most {C.BRIDGE_NAME_MAX} bytes (got "
                 f"{len(data)}) — it has to fit the Bluetooth advertisement")
         self.request(C.SYS_SET_NAME, data)
-        if self.info is not None:
-            self.info = dataclasses.replace(self.info, name=name)
+        self.info = dataclasses.replace(self.info, name=name)
 
     # ---- sub-APIs (lazy, created on first access) ----------------------------------------------
 
@@ -1211,7 +1208,6 @@ class BridgeSet(list):
 
 
 def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
-                  on_connect=None, backlog: int = 512,
                   **kwargs) -> BridgeSet:
     """Every board that matches, as a :class:`BridgeSet`. Reached via
     :meth:`Bridge.all`.
@@ -1250,7 +1246,7 @@ def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
         """
         # Keyed by MAC, not by name: names are user-assigned and need not be
         # unique, the MAC always is.
-        mac = esp.info.mac if esp.info else ""
+        mac = esp.info.mac
         drop = [b for b in out
                 if not b.is_alive() or (incoming and b.info and b.info.mac == mac)]
         for stale in drop:
@@ -1262,15 +1258,11 @@ def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
             esp.close()
             return
         out.append(esp)
-        log.info(f"{esp.info.ident if esp.info else mac} online from {where} "
-                 f"({len(out)} boards)")
-        if on_connect is not None:
-            on_connect(esp)
+        log.info(f"{esp.info.ident} online from {where} ({len(out)} boards)")
 
-    enum = {k: v for k, v in kwargs.items() if k in _ENUM_KWARGS}
     errors: list[str] = []
-    for factory, label, _chip, ident in _candidates(tcp_port=tcp_port, wifi=wifi,
-                                                    **enum):
+    for factory, label, ident in _candidates(tcp_port=tcp_port, wifi=wifi,
+                                             **kwargs):
         if ident and any(b.info and _is(ident, b.info.name, b.info.mac)
                          for b in out):
             # This board is already open on a link we prefer. Bluetooth and
@@ -1310,8 +1302,7 @@ def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
         return out
 
     # Dial-home boards: nothing to enumerate, they come to us.
-
-    out._listener = listener = TcpListener(tcp_port, "0.0.0.0", backlog=backlog)
+    out._listener = listener = TcpListener(tcp_port)
     log.info(f"accepting dial-home boards on port {listener.port}")
 
     def accept_loop():

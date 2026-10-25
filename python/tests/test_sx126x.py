@@ -21,6 +21,7 @@ SET_TX = 0x83
 SET_RX = 0x82
 GET_IRQ_STATUS = 0x12
 GET_RX_BUFFER_STATUS = 0x13
+SET_DIO_IRQ = 0x08
 
 
 class FakeSpi:
@@ -29,7 +30,7 @@ class FakeSpi:
         self.frames = []          # list of (tx_bytes, cs)
         self.responses = {}       # opcode -> rx bytes to return (incl. status echo)
 
-    def init(self, *, sck=18, miso=19, mosi=23, freq=1_000_000, mode=0,
+    def init(self, *, sck=None, miso=None, mosi=None, freq=1_000_000, mode=0,
              msb_first=True, host=0):
         self.inited = (sck, miso, mosi, freq, mode)
 
@@ -132,9 +133,27 @@ def test_modulation_params_sf7_bw125_cr45():
     assert tx[3] == 0x01          # CR 4/5
 
 
+@pytest.mark.parametrize("sf,bw,ldro", [
+    (7, 125_000, 0), (10, 125_000, 0), (11, 125_000, 1), (12, 125_000, 1),
+    (10, 62_500, 1), (11, 500_000, 0), (12, 500_000, 0), (7, 7_800, 1)])
+def test_ldro_follows_symbol_time(sf, bw, ldro):
+    # LowDataRateOptimize is on iff 2**SF / BW >= 16.38 ms (datasheet 6.1.1.4).
+    esp, _ = make(sf=sf, bw=bw)
+    tx, _ = first_frame(esp, SET_MODULATION)
+    assert tx[4] == ldro
+
+
+def test_crc_and_header_errors_enabled_in_irq_mask():
+    # A masked IRQ never sets its bit: CRC/header errors must be in the IRQ
+    # mask or receive() can't tell a corrupt packet from a good one.
+    esp, _ = make()
+    tx, _ = first_frame(esp, SET_DIO_IRQ)
+    assert tx[1:5] == bytes([0x02, 0x63, 0x02, 0x03])
+
+
 def test_spi_init_called_with_pins():
     esp, _ = make()
-    assert esp.spi.inited == (18, 19, 23, 2_000_000, 0)
+    assert esp.spi.inited == (None, None, None, 2_000_000, 0)  # board's pins
 
 
 def test_cs_used_on_every_command_frame():

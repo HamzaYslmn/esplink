@@ -36,8 +36,9 @@ static void load_device_name() {
 
 const char* sys_device_name() { load_device_name(); return bridge_name; }
 
-// 48-bit factory device address from FICR — unique per die, used as the MAC.
-static void nrf_read_mac(uint8_t mac[6]) {
+// 48-bit factory device address from FICR — unique per die, used as the MAC
+// (also by link_ble.cpp's advertised name).
+void nrf_read_mac(uint8_t mac[6]) {
   uint32_t lo = NRF_FICR->DEVICEADDR[0];
   uint32_t hi = NRF_FICR->DEVICEADDR[1];
   mac[0] = (uint8_t)(hi >> 8); mac[1] = (uint8_t)hi;
@@ -45,44 +46,21 @@ static void nrf_read_mac(uint8_t mac[6]) {
   mac[4] = (uint8_t)(lo >> 8);  mac[5] = (uint8_t)lo;
 }
 
-uint16_t sys_build_info(uint8_t* out) {
-  uint8_t* p = out;
-  *p++ = PROTOCOL_VERSION;
-  *p++ = FW_VERSION_MAJOR;
-  *p++ = FW_VERSION_MINOR;
-  *p++ = FW_VERSION_PATCH;
-  *p++ = BRIDGE_CHIP;
+uint8_t* sys_info_body(uint8_t* p) {
   *p++ = 0;  // chip revision: not reported on this part
+  nrf_read_mac(p); p += 6;
 
-  uint8_t mac[6] = {0};
-  nrf_read_mac(mac);
-  memcpy(p, mac, 6); p += 6;
-
-  // No Wi-Fi / DAC / touch / ESP-NOW / RMT / CAN / I2S on nRF52. CAPIF folds at
-  // compile time — see commands.h.
-  uint32_t caps =
-        CAPIF(BRIDGE_HAS_BLE,     CAP_BLE)
-      | CAPIF(BRIDGE_BLE,         CAP_BLE_FW)
-      | CAPIF(BRIDGE_NATIVE_USB,  CAP_NATIVE_USB)
-      | CAPIF(BRIDGE_HAS_ONEWIRE, CAP_ONEWIRE)
-      | CAPIF(BRIDGE_HAS_FS,      CAP_FS)
-      | CAPIF(BRIDGE_HAS_NVS,     CAP_NVS)
-      | CAPIF(BRIDGE_HAS_SLEEP,   CAP_SLEEP);
+  // No Wi-Fi / DAC / touch / ESP-NOW / RMT / CAN / I2S on nRF52. Serial is
+  // native USB CDC (baud ignored); FS and NVS are LittleFS on internal flash;
+  // SLEEP is System OFF with GPIO wake.
+  uint32_t caps = CAP_NATIVE_USB | CAP_ONEWIRE | CAP_FS | CAP_NVS | CAP_SLEEP
+      | CAPIF(BRIDGE_BLE, CAP_BLE_FW);
   if (link_ble_enabled()) caps |= CAP_BLE_LINK;
   write_be32(p, caps); p += 4;
 
-#ifdef PINS_COUNT
   *p++ = (uint8_t)PINS_COUNT;
-#else
-  *p++ = 48;  // nRF52840: P0.00..P1.15
-#endif
   *p++ = 1;   // 1 MB internal flash
-
-  // Name as the tail, unlength-prefixed: the frame already carries the length.
-  load_device_name();
-  uint8_t nlen = strlen(bridge_name);
-  memcpy(p, bridge_name, nlen); p += nlen;
-  return p - out;
+  return p;
 }
 
 void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {

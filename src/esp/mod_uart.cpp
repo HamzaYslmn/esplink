@@ -15,9 +15,8 @@ static HardwareSerial* port_for_index(uint8_t idx) {
 
 void uart_poll() {
   for (uint8_t idx = 1; idx <= 2; idx++) {
-    if (!uart_inited[idx]) continue;
+    if (!uart_inited[idx]) continue;  // set only for a port port_for_index() returned
     HardwareSerial* u = port_for_index(idx);
-    if (!u) continue;
     int avail = u->available();
     if (avail <= 0) continue;
     uint8_t buf[1 + UART_CHUNK];
@@ -41,6 +40,7 @@ void uart_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (uart_inited[idx]) u->end();
       u->setRxBufferSize(1024);
       u->begin(read_be32(p + 3), SERIAL_8N1, (int8_t)p[2], (int8_t)p[1]);  // arduino-esp32 begin() order: baud, config, rx_pin, tx_pin
+      u->onReceive(proto_rx_kick);  // uart_poll on arrival, not on rx_task's next 1 ms poll
       uart_inited[idx] = true;
       proto_reply_ok(seq, cmd);
       break;

@@ -269,6 +269,7 @@ def test_advertised_identity_parses():
 @pytest.mark.parametrize("advert,target", [
     ("esplink_relays", "relays"),                       # named board, by name
     ("esplink_c049efd03fe0", "c0:49:ef:d0:3f:e0"),      # unnamed, by MAC
+    ("esplink_relays", "c0:49:ef:d0:3f:e0"),            # named, by MAC: radio address is base+2
 ])
 def test_ble_selection_matches_the_advertised_identity(monkeypatch, advert, target):
     import esplink.transports.ble as ble_mod
@@ -279,7 +280,7 @@ def test_ble_selection_matches_the_advertised_identity(monkeypatch, advert, targ
 
     seen = []
     monkeypatch.setattr(ble_mod, "find_ble_devices_fast",
-                        lambda pred: seen.append(pred(adv)) or [])
+                        lambda pred, **_: seen.append(pred(adv)) or [])
     monkeypatch.setattr(ble_mod, "find_ble_devices", lambda *a, **k: [])
     with pytest.raises(NoDeviceError):
         Bridge(target, ble=True)
@@ -293,7 +294,7 @@ def test_ble_mac_selection_falls_back_to_asking_over_the_link(monkeypatch):
     from esplink.transports.ble import BleDeviceInfo
 
     adv = BleDeviceInfo("esplink_relays", "C0:49:EF:D0:3F:E2", -50)
-    monkeypatch.setattr(ble_mod, "find_ble_devices_fast", lambda pred: [])
+    monkeypatch.setattr(ble_mod, "find_ble_devices_fast", lambda pred, **_: [])
     monkeypatch.setattr(ble_mod, "find_ble_devices", lambda *a, **k: [adv])
 
     fake = FakeFirmware(mac="c049efd03fe0", name="relays")
@@ -315,7 +316,7 @@ def test_ble_selection_rejects_a_board_that_answers_differently(monkeypatch):
     from esplink.transports.ble import BleDeviceInfo
 
     lying = BleDeviceInfo("esplink_relays", "C0:49:EF:D0:3F:E2", -50)
-    monkeypatch.setattr(ble_mod, "find_ble_devices_fast", lambda pred: [lying])
+    monkeypatch.setattr(ble_mod, "find_ble_devices_fast", lambda pred, **_: [lying])
 
     fake = FakeFirmware(mac="c049efd0ffff", name="something-else")
     fake.boot()

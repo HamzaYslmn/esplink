@@ -13,9 +13,10 @@ void pwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       uint32_t freq = read_be32(p + 1);
       // The timer's width is the chip's (S3/C3 14 bits, classic 20; the wire caps
       // at 16). freq x 2^res must also fit the LEDC clock — 40 MHz XTAL on S3/C3,
-      // 80 MHz APB on classic — which only ledcAttach can judge: ST_IO.
+      // 80 MHz APB on classic — which only ledcAttach can judge. Either way the
+      // pair is unachievable, a bad argument (23 Hz x 10 bits fails on the S3).
       if (res < 1 || res > 16 || res > SOC_LEDC_TIMER_BIT_WIDTH || freq == 0) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
-      if (!ledcAttach(pin, freq, res)) { proto_reply_err(seq, cmd, ST_IO); return; }
+      if (!ledcAttach(pin, freq, res)) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       proto_reply_ok(seq, cmd);
       break;
     }

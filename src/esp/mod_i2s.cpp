@@ -6,9 +6,6 @@
 // Runs on slow_task.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_I2S
-
 #include <ESP_I2S.h>
 
 static I2SClass i2s;
@@ -66,10 +63,4 @@ void i2s_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else
-
-UNSUPPORTED_STUB(i2s_handle, MOD_I2S)
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

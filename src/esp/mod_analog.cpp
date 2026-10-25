@@ -5,24 +5,16 @@
 #include "esplink/radio.h"
 #include <esp32-hal-adc.h>
 
-#if BRIDGE_HAS_DAC
-#include <esp32-hal-dac.h>
-#if __has_include("driver/dac_cosine.h")
-#include "driver/dac_cosine.h"
-#define BRIDGE_DAC_COSINE 1
-#endif
-#endif
-
 #if BRIDGE_HAS_TOUCH
 #include <esp32-hal-touch.h>
 #endif
 
-// pin_is_adc2() — the ADC2/Wi-Fi conflict check — is shared via modules.h.
-
 #if BRIDGE_HAS_DAC  // classic ESP32 only: DAC1 = GPIO25, DAC2 = GPIO26
+#include <esp32-hal-dac.h>
+#include "driver/dac_cosine.h"
+
 static bool is_dac_pin(uint8_t pin) { return pin == 25 || pin == 26; }
 
-#if BRIDGE_DAC_COSINE
 static dac_cosine_handle_t cos_handle[2];  // per DAC channel
 static int dac_channel(uint8_t pin) { return pin == 25 ? 0 : 1; }
 
@@ -34,7 +26,6 @@ static void stop_cosine(uint8_t pin) {
     cos_handle[ch] = nullptr;
   }
 }
-#endif
 #endif  // BRIDGE_HAS_DAC
 
 static void handle_adc(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
@@ -75,15 +66,12 @@ static void handle_dac(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) 
   switch (op) {
     case 0x01:  // WRITE: pin, value
       NEED(2);
-#if BRIDGE_DAC_COSINE
-      stop_cosine(pin);  // the cosine generator holds exclusive ownership of the DAC channel while active, so stop it before doing a plain write
-#endif
+      stop_cosine(pin);  // the cosine generator owns the channel while active
       dacWrite(pin, p[1]);
       proto_reply_ok(seq, cmd);
       break;
 
     case 0x02: {  // COSINE: pin, freq u32, scale, offset i8, phase
-#if BRIDGE_DAC_COSINE
       NEED(8);
       stop_cosine(pin);
       dacDisable(pin);
@@ -103,16 +91,11 @@ static void handle_dac(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) 
         return;
       }
       proto_reply_ok(seq, cmd);
-#else
-      proto_reply_err(seq, cmd, ST_UNSUPPORTED);
-#endif
       break;
     }
 
     case 0x04:  // DISABLE
-#if BRIDGE_DAC_COSINE
       stop_cosine(pin);
-#endif
       dacDisable(pin);
       proto_reply_ok(seq, cmd);
       break;

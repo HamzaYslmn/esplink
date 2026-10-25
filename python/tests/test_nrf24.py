@@ -32,7 +32,7 @@ class FakeSpi:
         self.status_byte = status_byte
         self.payload = payload
 
-    def init(self, *, sck=18, miso=19, mosi=23, freq=1_000_000,
+    def init(self, *, sck=None, miso=None, mosi=None, freq=1_000_000,
              mode=0, msb_first=True, host=0):
         self.inited = dict(sck=sck, miso=miso, mosi=mosi, freq=freq,
                            mode=mode, msb_first=msb_first)
@@ -91,6 +91,16 @@ def test_construct_configures_radio():
     # CE and CS were set up as outputs.
     pins = {pin: mode for pin, mode in esp.gpio.modes}
     assert pins[17] == "output" and pins[5] == "output"
+
+
+@pytest.mark.parametrize("rate,rf_setup", [
+    ("1mbps", 0x06), ("2mbps", 0x0E), ("250kbps", 0x26)])
+def test_rf_setup_data_rate_bits(rate, rf_setup):
+    # RF_SETUP: RF_DR_LOW = bit5, RF_DR_HIGH = bit3 (bit4 is PLL_LOCK),
+    # RF_PWR = bits 2:1 (11 = 0 dBm).
+    esp = FakeEsp()
+    NRF24(esp, cs=5, ce=17, data_rate=rate)
+    assert _writes_to(esp, 0x06) == [bytes([rf_setup])]
 
 
 def test_send_writes_payload_and_toggles_ce():

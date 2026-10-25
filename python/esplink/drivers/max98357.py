@@ -29,12 +29,7 @@ class MAX98357:
     def __init__(self, bridge, *, bclk: int, ws: int, dout: int,
                  rate: int = 16_000, bits: int = 16, stereo: bool = False):
         self._i2s = bridge.i2s
-        self._bclk = bclk
-        self._ws = ws
-        self._dout = dout
         self._rate = rate
-        self._bits = bits
-        self._stereo = stereo
         self._i2s.begin_output(bclk=bclk, ws=ws, dout=dout, rate=rate,
                                bits=bits, stereo=stereo)
 
@@ -52,13 +47,7 @@ class MAX98357:
         n = int(self._rate * seconds)
         amp = int(volume * 32767)
         step = 2.0 * math.pi * freq / self._rate
-        samples = bytearray()
-        for i in range(n):
-            value = int(amp * math.sin(step * i))
-            # clamp into signed 16-bit range, then pack little-endian
-            value = max(-32768, min(32767, value))
-            samples += struct.pack("<h", value)
-        return self.play(bytes(samples))
+        return self.play(struct.pack(f"<{n}h", *(int(amp * math.sin(step * i)) for i in range(n))))
 
     def stop(self) -> None:
         """Stop the I2S peripheral and release its pins."""

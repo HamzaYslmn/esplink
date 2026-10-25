@@ -206,7 +206,7 @@ def test_default_takes_usb_before_bluetooth(monkeypatch):
     monkeypatch.setattr(bridge_mod, "SerialTransport", fake_serial)
     monkeypatch.setattr(bridge_mod, "_ble_candidates",
                         lambda *a, **k: [(lambda: ble.transport, "BLE test",
-                                          None, "aa:bb:cc:dd:ee:0b")])
+                                          "aa:bb:cc:dd:ee:0b")])
     with Bridge.all(upgrade_baud=False, reset_on_open=False) as boards:
         assert boards.idents() == ["aa:bb:cc:dd:ee:0c", "aa:bb:cc:dd:ee:0b"]
     with Bridge(upgrade_baud=False, reset_on_open=False) as esp:
@@ -249,7 +249,7 @@ def test_a_dead_usb_port_still_falls_through_to_bluetooth(monkeypatch):
                             NoDeviceError("port busy")))
     monkeypatch.setattr(bridge_mod, "_ble_candidates",
                         lambda *a, **k: [(lambda: ble.transport, "ble onble",
-                                          None, "onble")])
+                                          "onble")])
     with Bridge(upgrade_baud=False, reset_on_open=False) as esp:
         assert esp.info.name == "onble"
 
@@ -274,7 +274,7 @@ def test_all_skips_a_board_already_open_on_a_better_link(monkeypatch):
 
     monkeypatch.setattr(bridge_mod, "SerialTransport", fake_serial)
     monkeypatch.setattr(bridge_mod, "_ble_candidates",
-                        lambda *a, **k: [(boom, "ble solo", None, "solo")])
+                        lambda *a, **k: [(boom, "ble solo", "solo")])
     with Bridge.all(upgrade_baud=False, reset_on_open=False) as boards:
         assert boards.idents() == ["solo"]
 
@@ -288,7 +288,7 @@ def test_falls_back_to_wifi_only_when_usb_and_bluetooth_find_nothing(monkeypatch
 
     def fake_wifi(want, tcp_port):
         asked.append(want)
-        return [(lambda: board.transport, "wifi 10.0.0.5:3232", None, "onwifi")]
+        return [(lambda: board.transport, "wifi 10.0.0.5:3232", "onwifi")]
 
     monkeypatch.setattr(bridge_mod, "find_ports", lambda: [])
     monkeypatch.setattr(bridge_mod, "_ble_candidates", lambda *a, **k: [])

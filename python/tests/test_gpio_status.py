@@ -36,3 +36,10 @@ def test_dump_lists_active_pins(bridge):
     assert set(dump) == {2, 5}                 # dump only returns pins that have been configured or have PWM attached
     assert dump[2].mode == "output" and dump[2].level == 1
     assert dump[5].pwm and dump[5].pwm_freq == 1500 and dump[5].pwm_duty == 256
+
+
+def test_default_pwm_resolution_fits_the_ledc_divider(bridge):
+    # 10 bits where it fits; more below ~76 Hz (LEDC divider max 1023), fewer up high
+    for freq, bits in ((23, 12), (50, 11), (1000, 10), (25_000, 9)):
+        bridge.pwm.attach(5, freq=freq)
+        assert bridge.pwm._attached[5] == (freq, bits)

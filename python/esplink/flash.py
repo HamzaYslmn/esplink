@@ -4,8 +4,8 @@ Prebuilt images ship inside the package, one per supported board: merged
 "Huge APP" (3 MB app, no OTA) images of ``examples/Bridge`` for the classic
 ESP32 and the ESP32-S3, written with esptool, and a UF2 of
 ``examples/Bridge_nRF52`` for the Pro Micro nRF52840, copied onto its
-bootloader drive. The board is picked from the port's USB ID; ``--chip``
-overrides it.
+bootloader drive. The board is picked from the port's USB ID (or, behind a
+USB-UART bridge, by asking the chip); ``--chip`` overrides it.
 
     esplink flash               # list ports, pick one, flash
     esplink flash -p COM5       # flash a specific port
@@ -126,13 +126,21 @@ def select_port(port: str | None = None) -> str:
 
 
 def detect_chip(port: str) -> str:
-    """Guess the board from the port's USB vendor ID."""
+    """Pick the board: a native USB ID names it; behind a USB-UART bridge (a
+    classic DevKit, or an S3's UART port) ask the chip itself."""
     from serial.tools import list_ports
 
     vid = next((p.vid for p in list_ports.comports() if p.device == port), None)
     # ponytail: 303A is every Espressif native-USB chip, not just the S3; on a
     # C3/C6 esptool refuses the S3 image (wrong chip) and --chip picks the right one.
-    return {0x303A: "esp32s3", 0x239A: "promicro"}.get(vid, "esp32")
+    if vid in (0x303A, 0x239A):
+        return {0x303A: "esp32s3", 0x239A: "promicro"}[vid]
+    try:
+        import esptool
+        with esptool.detect_chip(port) as esp:
+            return "esp32s3" if esp.CHIP_NAME == "ESP32-S3" else "esp32"
+    except Exception:  # no esptool or no answer: write-flash reports the real error
+        return "esp32"
 
 
 def _uf2_drives() -> list[Path]:
@@ -183,7 +191,7 @@ def flash_firmware(port: str | None = None, *,
     port = select_port(port)
     if chip == "auto":
         chip = detect_chip(port)
-        log.info(f"board: {chip} (from the port's USB ID; --chip overrides)")
+        log.info(f"board: {chip} (--chip overrides)")
     fw = Path(firmware) if firmware else firmware_path(chip)
     if not fw.is_file():
         raise BridgeError(f"firmware image not found: {fw}")
@@ -220,8 +228,6 @@ def flash_firmware(port: str | None = None, *,
     except SystemExit as e:  # esptool calls sys.exit() on argument/connect errors
         if e.code:
             raise BridgeError(f"esptool exited with status {e.code}")
-    except KeyboardInterrupt:
-        raise
     except Exception as e:  # FatalError and friends — surface a clean message
         raise BridgeError(f"flash failed: {e}")
     log.info("done — the board will reboot into the bridge firmware "
@@ -229,38 +235,11 @@ def flash_firmware(port: str | None = None, *,
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for the standalone `flash` command, so the one-off is just
+    """The standalone `flash` command (``uvx --from "esplink[flash]" flash``):
+    exactly `esplink flash`."""
+    from .cli import main as cli_main
 
-        uvx --from "esplink[flash]" flash
-
-    `esplink flash` runs the same thing through the main CLI.
-    """
-    import argparse
-
-    from . import __version__
-    from .cli import _force_utf8_output
-
-    _force_utf8_output()
-    ap = argparse.ArgumentParser(
-        prog="flash",
-        description="Flash the bundled bridge firmware to a board over USB.")
-    ap.add_argument("--version", action="version", version=f"esplink {__version__}")
-    ap.add_argument("-p", "--port", help="serial port to flash (default: list ports and choose)")
-    ap.add_argument("--baud", type=int, default=DEFAULT_BAUD,
-                    help=f"flash baud rate (default: {DEFAULT_BAUD})")
-    ap.add_argument("--erase", action="store_true",
-                    help="erase the whole flash before writing (clears NVS / stored name)")
-    ap.add_argument("--firmware", help="flash this .bin/.uf2 instead of the bundled image")
-    ap.add_argument("--chip", default="auto",
-                    help=f"board: {', '.join(CHIPS)} (default: auto, from the USB ID)")
-    args = ap.parse_args(argv)
-    try:
-        flash_firmware(args.port, baud=args.baud, erase=args.erase,
-                       firmware=args.firmware, chip=args.chip)
-    except BridgeError as e:
-        log.error(str(e))
-        return 1
-    return 0
+    return cli_main(["flash", *(sys.argv[1:] if argv is None else argv)])
 
 
 if __name__ == "__main__":

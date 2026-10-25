@@ -2,6 +2,7 @@
 feedback, and byte/hex/info conversion."""
 from __future__ import annotations
 
+import contextlib
 import functools
 from types import SimpleNamespace
 
@@ -42,38 +43,25 @@ def _feedback_message(name: str, params: dict, result) -> str:
     return head if result is None else f"{head} -> {_short(result)}"
 
 
-def _notify_client(msg: str, level: str = "info") -> None:
-    # FastMCP runs each tool in a synchronous worker thread, so we use
-    # anyio.from_thread.run to hop back to the async event loop in order to
-    # send the MCP notification. If that fails (client disconnected, no active
-    # portal), we silently drop it — the server log still captures the message.
-    try:
-        ctx = get_context()
-    except RuntimeError:
-        return  # no active request (direct call / tests)
-    send = ctx.warning if level == "warning" else ctx.info
-    try:
-        anyio.from_thread.run(send, msg)
-    except Exception:
-        pass
-
-
 def emit_feedback(name: str, params: dict, result, *, ok: bool = True) -> None:
     """Surface a one-line 'what happened on the board' message — to the server
     log (operator) and, when a request is active, to the MCP client (agent and
     user). Reports failures too (ok=False), so every action is visible. Never
     raises: feedback must not break a tool."""
-    try:
+    if not FEEDBACK.enabled:
+        return
+    with contextlib.suppress(Exception):
         if ok:
-            msg, level = _feedback_message(name, params, result), "info"
+            msg = _feedback_message(name, params, result)
             log.info(msg)
         else:
             msg = f"{_call_head(name, params)} FAILED: {type(result).__name__}: {result}"
-            level = "warning"
             log.warning(msg)
-        _notify_client(msg, level)
-    except Exception:
-        pass
+        # Tools run in a worker thread: hop back to the event loop to notify.
+        # get_context() raises outside a request (direct call / tests), and a
+        # gone client fails the send — either way the log line above stands.
+        ctx = get_context()
+        anyio.from_thread.run(ctx.info if ok else ctx.warning, msg)
 
 
 def guarded(fn):
@@ -90,11 +78,9 @@ def guarded(fn):
         try:
             result = fn(*args, **kwargs)
         except _USER_ERRORS as e:
-            if FEEDBACK.enabled:
-                emit_feedback(fn.__name__, kwargs, e, ok=False)
+            emit_feedback(fn.__name__, kwargs, e, ok=False)
             raise ToolError(f"{type(e).__name__}: {e}") from e
-        if FEEDBACK.enabled:
-            emit_feedback(fn.__name__, kwargs, result)
+        emit_feedback(fn.__name__, kwargs, result)
         return result
 
     return wrapper

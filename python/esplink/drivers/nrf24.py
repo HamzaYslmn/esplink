@@ -73,10 +73,11 @@ _MAX_RT = 1 << 4        # max retransmits reached  (write 1 to clear; blocks TX)
 # --- FIFO_STATUS bits ------------------------------------------------------
 _RX_EMPTY = 1 << 0
 
-# --- RF_SETUP data-rate encoding (PS v1.0, RF_DR_LOW=bit5, RF_DR_HIGH=bit4) -
+# --- RF_SETUP data-rate encoding (PS v1.0, RF_DR_LOW=bit5, RF_DR_HIGH=bit3;
+#   bit4 is PLL_LOCK, a test bit) -
 #   1Mbps : low=0 high=0 ; 2Mbps : low=0 high=1 ; 250kbps : low=1 high=0
 _RF_DR_LOW = 1 << 5
-_RF_DR_HIGH = 1 << 4
+_RF_DR_HIGH = 1 << 3
 _RF_PWR_0DBM = 0b11 << 1     # RF_PWR bits 2:1 = 11 -> 0 dBm (max output)
 _DATA_RATES = {
     "250kbps": _RF_DR_LOW,
@@ -121,7 +122,7 @@ class NRF24:
 
         # SPI: mode 0, MSB-first (CPOL=0/CPHA=0, the nRF24's required mode).
         if init_spi:  # pins left out are the board's (esp.pins)
-            self._spi.init(freq=freq, mode=0, msb_first=True, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
+            self._spi.init(sck=sck, miso=miso, mosi=mosi, freq=freq, mode=0)
 
         # CE low (idle/standby), CS high idle. CS is actually driven by the
         # firmware during each transfer (cs=self._cs); we still park it high so
@@ -148,7 +149,7 @@ class NRF24:
         self._write_reg(_EN_RXADDR, 0x01)   # enable pipe 0
         self._write_reg(_EN_AA, 0x01)       # auto-ack on pipe 0
         self._write_reg(_SETUP_AW, 0b11)    # 5-byte addresses
-        # ARD = 1500us (0xF), ARC = 15 retries — generous defaults.
+        # ARD = (0xF + 1) * 250us = 4000us, ARC = 15 retries — generous defaults.
         self._write_reg(_SETUP_RETR, 0xFF)
 
         self._command(_FLUSH_TX)
@@ -204,11 +205,7 @@ class NRF24:
         (acknowledged), False if the auto-retransmit count was exhausted
         (MAX_RT). `data` is truncated/zero-padded to the configured
         payload_size."""
-        data = bytes(data)
-        if len(data) > self._payload:
-            data = data[: self._payload]
-        elif len(data) < self._payload:
-            data = data + b"\x00" * (self._payload - len(data))
+        data = bytes(data)[: self._payload].ljust(self._payload, b"\x00")
 
         self.stop_listening()                 # CE low + PTX mode
         self._set_prim_rx(False)

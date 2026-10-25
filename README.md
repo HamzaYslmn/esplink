@@ -179,22 +179,25 @@ Measured on real boards, Windows 11 host:
 
 | | classic ESP32 (CP2102) | ESP32-S3 (native USB) | nRF52840 Pro Micro |
 |---|---|---|---|
-| USB ping p50 / p99 | 2.0 / 3.1 ms | 0.26 / 0.5 ms | 0.97 / 1.1 ms |
+| USB ping p50 / p99 | 1.9 / 2.1 ms | 0.23 / 0.36 ms | 0.30 / 0.43 ms |
 | USB connect | 1–2.5 s (resets the board) | 0.01 s | 0.01 s |
 | USB pipelined (8 threads) | 3,800 req/s | 7,500–9,200 req/s | 4,400 req/s |
-| BLE ping p50 | 30 ms | 30 ms | 30 ms |
+| BLE ping p50 | 15 ms | 15 ms | 15 ms |
+| file read USB / BLE | 142 / 40 KB/s | 749 / 67 KB/s | 246 / 27 KB/s |
+| GPIO edge → host event | | +0.16 ms | |
 | I2C register read | | 0.38 ms | |
 | OLED 128×64, typical / full frame | | 477 / 33 fps (58 at 1 MHz I2C) | |
 
-The host spends about 20 µs per request. BLE round trips are two of Windows'
-15 ms connection intervals — the host's floor, not the board's.
+The host spends about 20 µs per request. A BLE round trip is two connection
+intervals: the board asks for exactly 7.5 ms, which Windows grants about 2 s
+after connecting (offered a 7.5–15 ms range, it picks 15).
 
 ## Hardware
 
 | board | build | notes |
 |---|---|---|
 | classic **ESP32** (CP2102/CH340) | `arduino-cli compile examples/Bridge` | everything; with BLE there's no room for SD (LittleFS works) |
-| **ESP32-S3** (native USB) | `--profile esp32s3` | light sleep needs a non-USB link |
+| **ESP32-S3** (native USB or UART port) | `--profile esp32s3` | both USB ports are links; light sleep needs a non-USB link |
 | **ESP32-C3** | `--fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc,PartitionScheme=min_spiffs` | compile-checked |
 | **nRF52840** Pro Micro | `--profile promicro examples/Bridge_nRF52` | BLE, GPIO, ADC, PWM, I2C, SPI, UART, 1-Wire, files, NVS, sleep |
 

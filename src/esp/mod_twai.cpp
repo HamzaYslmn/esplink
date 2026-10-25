@@ -3,9 +3,6 @@
 // RX frames pushed as TWAI_RX_EVT from twai_poll() on slow_task.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
-
-#if BRIDGE_HAS_TWAI
-
 #include <driver/twai.h>
 
 static bool twai_up = false;
@@ -106,11 +103,4 @@ void twai_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       proto_reply_err(seq, cmd, ST_UNKNOWN_CMD);
   }
 }
-
-#else
-
-void twai_poll() {}
-UNSUPPORTED_STUB(twai_handle, MOD_TWAI)
-
-#endif
 #endif  // ARDUINO_ARCH_ESP32

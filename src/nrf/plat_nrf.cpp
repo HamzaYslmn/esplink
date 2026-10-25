@@ -49,6 +49,13 @@ void plat_serial_begin() {
   Serial.begin(115200);
 }
 
+// TinyUSB's weak CDC hooks, run on its usbd task the moment the FIFOs move:
+// wake the bridge tasks then instead of on their next 1 ms tick. RX: a request
+// is parsed at once; TX complete: the next part of a reply bigger than the
+// 256 B CDC FIFO goes out without waiting a tick per 256 B.
+extern "C" void tud_cdc_rx_cb(uint8_t) { proto_rx_kick(); }
+extern "C" void tud_cdc_tx_complete_cb(uint8_t) { proto_tx_kick(); }
+
 // No IDF-style logging subsystem and the USB-CDC link is the only serial port,
 // so there is nothing to redirect into SYS_LOG events.
 void proto_log_hook_install() {}

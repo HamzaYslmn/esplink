@@ -23,13 +23,7 @@ static volatile uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
 static const char* link_password = "";
 static BLEUart bleuart;  // Nordic UART Service — matches BLE_LINK_*_UUID
 
-static void nrf_read_mac(uint8_t mac[6]) {
-  uint32_t lo = NRF_FICR->DEVICEADDR[0];
-  uint32_t hi = NRF_FICR->DEVICEADDR[1];
-  mac[0] = (uint8_t)(hi >> 8); mac[1] = (uint8_t)hi;
-  mac[2] = (uint8_t)(lo >> 24); mac[3] = (uint8_t)(lo >> 16);
-  mac[4] = (uint8_t)(lo >> 8);  mac[5] = (uint8_t)lo;
-}
+void nrf_read_mac(uint8_t mac[6]);  // mod_sys.cpp
 
 static void connect_cb(uint16_t h) {
   conn_handle = h;
@@ -50,8 +44,10 @@ void link_ble_init(const char* password) {
 
   // Raise the negotiable ATT MTU / event length before begin() for throughput
   // (default MTU is 23 → 20-byte notifications, which throttles bulk frames).
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-  Bluefruit.begin();          // 1 peripheral connection, 0 central
+  // BANDWIDTH_MAX, but 8 queued notifications instead of 3: a 2 KB reply fits
+  // one connection event, and notify() no longer blocks tx_task on a full queue.
+  Bluefruit.configPrphConn(247, 100, 8, BLE_GATTC_WRITE_CMD_TX_QUEUE_SIZE_DEFAULT);
+  if (!Bluefruit.begin()) proto_log(2, "ble: SoftDevice refused the config (RAM)");
   Bluefruit.setTxPower(4);    // dBm — max range; the board is wired-powered
 
   // Advertised name "esplink_<name-or-mac>" — see the ESP counterpart in
@@ -91,7 +87,21 @@ void link_ble_init(const char* password) {
 bool link_ble_enabled() { return enabled; }
 uint32_t link_ble_rx_dropped() { return 0; }  // BLEUart FIFO drops are not counted on this core
 bool link_ble_authed() { return connected && authed; }
-void link_ble_set_authed(bool v) { authed = v; }
+// Ask for exactly 7.5 ms, as the ESP side does: the SoftDevice's default
+// preference is 20-30 ms, centrals keep their own unless asked, and Windows
+// takes 15 ms from any range (BLE ping 30 ms vs 15, measured). Then 251-byte
+// packets, which Bluefruit only accepts, never asks for. No 2M PHY: with it,
+// every FS write over BLE hung in its flash operation on S140 6.1.1 (measured).
+static void request_fast(BLEConnection* c) {
+  c->requestConnectionParameter(6);
+  c->requestDataLengthUpdate();
+}
+
+void link_ble_set_authed(bool v) {
+  authed = v;
+  BLEConnection* c = v && connected ? Bluefruit.Connection(conn_handle) : nullptr;
+  if (c) request_fast(c);
+}
 const char* link_ble_password() { return link_password; }
 
 bool link_ble_up() { return enabled && connected; }
@@ -100,8 +110,9 @@ bool link_ble_power(bool battery) {
   if (!link_ble_up()) return false;
   BLEConnection* c = Bluefruit.Connection(conn_handle);
   if (!c) return false;
-  // conn interval in 1.25 ms units: ~100 ms for battery, ~15 ms for performance.
-  c->requestConnectionParameter(battery ? 80 : 12);
+  // battery: ~100 ms interval (1.25 ms units); performance: back to 7.5-15 ms.
+  if (battery) c->requestConnectionParameter(80);
+  else request_fast(c);
   return true;
 }
 
@@ -128,18 +139,14 @@ uint16_t link_ble_read(uint8_t* buf, uint16_t maxlen) {
   return n > 0 ? (uint16_t)n : 0;
 }
 
-#else  // !BRIDGE_BLE — empty stubs so the rest of the codebase links cleanly
+#else  // !BRIDGE_BLE — stubs for the callers outside #if BRIDGE_BLE
 
-void link_ble_init(const char*) {}
 bool link_ble_enabled() { return false; }
 uint32_t link_ble_rx_dropped() { return 0; }
 bool link_ble_authed() { return false; }
 void link_ble_set_authed(bool) {}
 const char* link_ble_password() { return ""; }
-bool link_ble_up() { return false; }
 bool link_ble_power(bool) { return false; }
-uint16_t link_ble_write_chunk(const uint8_t*, uint16_t) { return 0; }
-uint16_t link_ble_read(uint8_t*, uint16_t) { return 0; }
 
 #endif  // BRIDGE_BLE
 #endif  // ARDUINO_ARCH_NRF52

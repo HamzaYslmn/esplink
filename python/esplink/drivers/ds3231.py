@@ -26,8 +26,6 @@ from __future__ import annotations
 
 from ..i2c import bind_i2c
 
-import struct
-
 _ADDR = 0x68          # fixed I2C address of the DS3231
 _REG_TIME = 0x00      # start of the 7-byte time/date block (all BCD)
 _REG_TEMP = 0x11      # 0x11 = whole °C (signed), 0x12 = quarter-degrees in [7:6]
@@ -109,6 +107,4 @@ class DS3231:
         e.g. 0x1C, 0x40 -> 28 + 1*0.25 = 28.25 °C.
         """
         b = self._i2c.read_reg(self._addr, _REG_TEMP, 2, self._bus)
-        whole = struct.unpack("b", bytes([b[0]]))[0]    # signed int8
-        frac = (b[1] >> 6) * 0.25
-        return whole + frac
+        return int.from_bytes(b[:1], "big", signed=True) + (b[1] >> 6) * 0.25

@@ -16,6 +16,15 @@ bool nrf_internalfs_begin();  // plat_nrf.cpp
 
 static int count_block(void* n, lfs_block_t) { ++*(uint32_t*)n; return 0; }
 
+// Blocks littlefs walks (the wrapper has no usage query).
+static uint32_t used_blocks() {
+  uint32_t used = 0;
+  InternalFS._lockFS();
+  lfs_traverse(InternalFS._getFS(), count_block, &used);
+  InternalFS._unlockFS();
+  return used;
+}
+
 static File dfile(InternalFS);  // the single open data file
 static bool dopen = false;
 
@@ -38,15 +47,10 @@ void fs_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       NEED(1);
       if (p[0] != 0) { proto_reply_err(seq, cmd, ST_UNSUPPORTED); return; }
       if (!nrf_internalfs_begin()) { proto_reply_err(seq, cmd, ST_IO); return; }
-      // The wrapper has no usage query: count the blocks littlefs walks.
-      lfs_t* fs = InternalFS._getFS();
-      uint32_t used = 0, bs = fs->cfg->block_size;
-      InternalFS._lockFS();
-      lfs_traverse(fs, count_block, &used);
-      InternalFS._unlockFS();
+      const lfs_config* c = InternalFS._getFS()->cfg;
       uint8_t buf[8];
-      write_be32(buf, fs->cfg->block_count * bs / 1024);
-      write_be32(buf + 4, used * bs / 1024);
+      write_be32(buf, c->block_count * c->block_size / 1024);
+      write_be32(buf + 4, used_blocks() * c->block_size / 1024);
       proto_reply(seq, cmd, buf, 8);
       break;
     }
@@ -62,10 +66,12 @@ void fs_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (!nrf_internalfs_begin()) { proto_reply_err(seq, cmd, ST_IO); return; }
       if (dopen) { proto_reply_err(seq, cmd, ST_BUSY); return; }  // one file at a time
       uint8_t mode = p[1];
-      dfile = InternalFS.open(path, mode == 0 ? FILE_O_READ : FILE_O_WRITE);
+      // Write: delete, don't truncate — littlefs is copy-on-write, so a truncated
+      // file keeps its old blocks until close, and rewriting an 8 KB file on this
+      // 28 KB volume ran out of blocks mid-write (see WRITE).
+      if (mode == 1) InternalFS.remove(path);
+      dfile = InternalFS.open(path, mode == 0 ? FILE_O_READ : FILE_O_WRITE);  // O_WRITE opens at the end
       if (!dfile) { proto_reply_err(seq, cmd, ST_NOT_FOUND); return; }
-      if (mode == 1) { dfile.truncate(0); dfile.seek(0); }   // write: truncate
-      else if (mode == 2) dfile.seek(dfile.size());          // append: seek to end
       dopen = true;
       uint8_t buf[5] = { 0 };  // fd is always 0 (single file)
       write_be32(buf + 1, dfile.size());
@@ -89,7 +95,12 @@ void fs_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
     case 0x05: {  // WRITE: fd|data -> written u16
       if (len < 1) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       if (p[0] != 0 || !dopen) { proto_reply_err(seq, cmd, ST_NOT_INIT); return; }
-      size_t w = (len > 1) ? dfile.write(p + 1, len - 1) : 0;
+      // A full volume hangs this core's littlefs v1 allocator for good (slow_task
+      // and every FS op after it, until reset — measured). Refuse the write with
+      // two blocks to spare instead: written=0 is the host's "filesystem full".
+      const lfs_config* c = InternalFS._getFS()->cfg;
+      bool room = (c->block_count - used_blocks()) * c->block_size >= (len - 1) + 2 * c->block_size;
+      size_t w = (len > 1 && room) ? dfile.write(p + 1, len - 1) : 0;
       uint8_t buf[2];
       write_be16(buf, (uint16_t)w);
       proto_reply(seq, cmd, buf, 2);

@@ -126,8 +126,8 @@ void watch_poll() {
     if (w.primed && (uint32_t)(t - w.last_ms) < w.period_ms) continue;
 
     int32_t v;
-    if (!read_watch_source(w, v)) { w.last_ms = t; continue; }  // unreadable now; retry next tick
     w.last_ms = t;
+    if (!read_watch_source(w, v)) continue;  // unreadable now; retry next period
     w.last_val = v;
 
     if (w.cmp == CMP_CHANGED) {

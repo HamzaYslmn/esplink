@@ -7,9 +7,7 @@ import time
 
 from . import constants as C
 
-# Maximum bytes sent in a single UART_WRITE request. Keeping this bounded
-# limits how long the firmware's synchronous write can block on a slow baud rate.
-_WRITE_CHUNK = 1024
+_WRITE_CHUNK = 1024  # bounds how long one firmware write blocks at a slow baud
 
 
 class UartPort:
@@ -25,14 +23,11 @@ class UartPort:
         self.is_open = True
         self._buf = bytearray()
         self._cond = threading.Condition()
-        self._callbacks: list = []
 
     def _feed(self, data: bytes) -> None:
         with self._cond:
             self._buf += data
             self._cond.notify_all()
-        for cb in list(self._callbacks):
-            cb(data)
 
     def write(self, data: bytes) -> int:
         """Send bytes out the port (chunked into <= 1 KB requests); returns the count."""
@@ -102,10 +97,6 @@ class UartPort:
 
     def flush(self) -> None:
         """No-op: writes are synchronous requests."""
-
-    def on_rx(self, callback) -> None:
-        """callback(bytes) on every RX chunk (on the Bridge's event thread)."""
-        self._callbacks.append(callback)
 
     def close(self) -> None:
         """Tear down the port on the firmware (stops RX streaming)."""
