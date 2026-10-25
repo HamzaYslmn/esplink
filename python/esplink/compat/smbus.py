@@ -43,8 +43,8 @@ class i2c_msg:  # noqa: N801 — smbus2's name
 
 
 class SMBus:
-    def __init__(self, esp, bus=None, force: bool = False, *, sda: int = 21,
-                 scl: int = 22, freq: int = 100_000, i2c_bus: int = 0, init: bool = True):
+    def __init__(self, esp, bus=None, force: bool = False, *, sda: int | None = None,
+                 scl: int | None = None, freq: int = 100_000, i2c_bus: int = 0, init: bool = True):
         self._i2c = esp.i2c
         self._bus = i2c_bus
         self._pins = {"sda": sda, "scl": scl, "freq": freq}

@@ -100,8 +100,8 @@ class NRF24:
     def __init__(self, bridge, *, cs: int, ce: int, channel: int = 76,
                  data_rate: str = "1mbps", payload_size: int = 32,
                  address: bytes = b"\xe7\xe7\xe7\xe7\xe7",
-                 sck: int | None = 18, miso: int | None = 19,
-                 mosi: int | None = 23, freq: int = 8_000_000):
+                 sck: int | None = None, miso: int | None = None,
+                 mosi: int | None = None, freq: int = 8_000_000, init_spi: bool = True):
         if not 0 <= channel <= 125:
             raise ValueError(f"channel must be 0..125, got {channel}")
         if data_rate not in _DATA_RATES:
@@ -120,10 +120,8 @@ class NRF24:
         self._payload = payload_size
 
         # SPI: mode 0, MSB-first (CPOL=0/CPHA=0, the nRF24's required mode).
-        if sck is not None or miso is not None or mosi is not None:
-            pins = {k: v for k, v in (("sck", sck), ("miso", miso), ("mosi", mosi))
-                    if v is not None}
-            self._spi.init(freq=freq, mode=0, msb_first=True, **pins)
+        if init_spi:  # pins left out are the board's (esp.pins)
+            self._spi.init(freq=freq, mode=0, msb_first=True, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
 
         # CE low (idle/standby), CS high idle. CS is actually driven by the
         # firmware during each transfer (cs=self._cs); we still park it high so

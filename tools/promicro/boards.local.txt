@@ -1,0 +1,59 @@
+# The board the Seeeduino nRF52 core does not ship. tools/build_firmware.py copies this into the
+# core as boards.local.txt, which the platform spec merges with its own boards.txt.
+promicronRF52840.name=Pro Micro nRF52840 (nice!nano)
+
+# VID/PID. 0x00B3 is the UF2 bootloader, 0x80B3 the app it launches
+promicronRF52840.vid.0=0x239A
+promicronRF52840.pid.0=0x00B3
+promicronRF52840.vid.1=0x239A
+promicronRF52840.pid.1=0x80B3
+
+# Upload
+promicronRF52840.bootloader.tool=bootburn
+promicronRF52840.upload.tool=nrfutil
+promicronRF52840.upload.protocol=nrfutil
+promicronRF52840.upload.use_1200bps_touch=true
+promicronRF52840.upload.wait_for_upload_port=true
+promicronRF52840.upload.maximum_size=815104
+promicronRF52840.upload.maximum_data_size=237568
+
+# Build
+promicronRF52840.build.mcu=cortex-m4
+promicronRF52840.build.f_cpu=64000000
+promicronRF52840.build.board=PROMICRO_NRF52840
+promicronRF52840.build.core=nRF5
+promicronRF52840.build.variant=ProMicro_nRF52840
+promicronRF52840.build.usb_manufacturer="nice!keyboards"
+promicronRF52840.build.usb_product="Pro Micro nRF52840"
+# Seeed's Wire errors out on a board macro it does not know, and all that branch decides is
+# whether to pull TinyUSB in for Serial, which this board wants too. Borrow the XIAO's name for
+# it: nothing else in the core reads that macro.
+promicronRF52840.build.extra_flags=-DNRF52840_XXAA -DARDUINO_Seeed_XIAO_nRF52840 {build.flags.usb}
+promicronRF52840.build.vid=0x239A
+promicronRF52840.build.pid=0x80B3
+
+# SoftDevice, and with it where the app starts. The stock bootloader these boards ship
+# with carries 6.1.1 and looks for the app at 0x26000. Burn Bootloader in the IDE moves
+# them to 0.9.x, which carries 7.3.0 and looks at 0x27000: pick to match, because the
+# wrong one flashes cleanly and then never boots. INFO_UF2.TXT on the drive says which.
+promicronRF52840.menu.softdevice.s140v6=S140 6.1.1 (stock bootloader)
+promicronRF52840.menu.softdevice.s140v6.build.sd_name=s140
+promicronRF52840.menu.softdevice.s140v6.build.sd_version=6.1.1
+promicronRF52840.menu.softdevice.s140v6.build.sd_fwid=0x00B6
+promicronRF52840.menu.softdevice.s140v6.build.ldscript=nrf52840_s140_v6.ld
+promicronRF52840.menu.softdevice.s140v7=S140 7.3.0 (bootloader 0.9.x)
+promicronRF52840.menu.softdevice.s140v7.build.sd_name=s140
+promicronRF52840.menu.softdevice.s140v7.build.sd_version=7.3.0
+promicronRF52840.menu.softdevice.s140v7.build.sd_fwid=0x0123
+promicronRF52840.menu.softdevice.s140v7.build.ldscript=nrf52840_s140_v7.ld
+
+# Debug Menu
+promicronRF52840.menu.debug.l0=Level 0 (Release)
+promicronRF52840.menu.debug.l0.build.debug_flags=-DCFG_DEBUG=0
+promicronRF52840.menu.debug.l1=Level 1 (Error Message)
+promicronRF52840.menu.debug.l1.build.debug_flags=-DCFG_DEBUG=1
+promicronRF52840.menu.debug.l2=Level 2 (Full Debug)
+promicronRF52840.menu.debug.l2.build.debug_flags=-DCFG_DEBUG=2
+promicronRF52840.menu.debug.l3=Level 3 (Segger SystemView)
+promicronRF52840.menu.debug.l3.build.debug_flags=-DCFG_DEBUG=3
+promicronRF52840.menu.debug.l3.build.sysview_flags=-DCFG_SYSVIEW=1

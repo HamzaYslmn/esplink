@@ -1,15 +1,17 @@
-"""Flash the bundled bridge firmware to an ESP32 over USB — no Arduino IDE.
+"""Flash the bundled bridge firmware to a board over USB — no Arduino IDE.
 
-A prebuilt "Huge APP" (3 MB app, no OTA) merged image of ``examples/Bridge``
-ships inside the package; this writes it to the board over the USB serial
-cable with esptool, so users never have to open the Arduino IDE to get the
-bridge firmware running.
+Prebuilt images ship inside the package, one per supported board: merged
+"Huge APP" (3 MB app, no OTA) images of ``examples/Bridge`` for the classic
+ESP32 and the ESP32-S3, written with esptool, and a UF2 of
+``examples/Bridge_nRF52`` for the Pro Micro nRF52840, copied onto its
+bootloader drive. The board is picked from the port's USB ID; ``--chip``
+overrides it.
 
     esplink flash               # list ports, pick one, flash
     esplink flash -p COM5       # flash a specific port
     esplink flash --erase       # wipe the whole flash first (clears NVS)
 
-Needs the [flash] extra (pulls in esptool):
+The ESP32 boards need the [flash] extra (pulls in esptool):
 
     uvx --from "esplink[flash]" esplink flash
     pip install "esplink[flash]"
@@ -21,7 +23,11 @@ updates need the Minimal SPIFFS scheme instead (see docs/FIRMWARE.md).
 """
 from __future__ import annotations
 
+import contextlib
+import shutil
+import string
 import sys
+import time
 from importlib import resources
 from pathlib import Path
 
@@ -29,16 +35,16 @@ from ._log import log
 from .errors import BridgeError
 from .transports import PortInfo, find_ports
 
-# The bundled image is a classic-ESP32 Huge APP build: one merged image that
-# already carries the bootloader + partition table + app, written at 0x0.
-FIRMWARE_CHIP = "esp32"
+# The bundled ESP images are Huge APP builds: one merged image that already
+# carries the bootloader + partition table + app, written at 0x0.
+CHIPS = ("esp32", "esp32s3", "promicro")
 FIRMWARE_OFFSET = "0x0"
 DEFAULT_BAUD = 921600  # Arduino's default upload speed; safe on every adapter
 _FIRMWARE_PKG = "esplink.firmware"
 
 
-def firmware_path() -> Path:
-    """Filesystem path to the bundled merged firmware image.
+def firmware_path(chip: str = "esp32") -> Path:
+    """Filesystem path to the bundled firmware image for `chip`.
 
     Raises BridgeError when the package was built without the binary — e.g. a
     source checkout that hasn't run ``tools/build_firmware.py`` yet. Release
@@ -47,13 +53,16 @@ def firmware_path() -> Path:
     try:
         root = resources.files(_FIRMWARE_PKG)
         for entry in root.iterdir():
-            if entry.name.endswith(".bin") and entry.is_file():
+            if entry.name.startswith(f"bridge.{chip}.") and entry.is_file():
                 # Wheels install unzipped, so the traversable is a real path.
                 return Path(str(entry))
     except (ModuleNotFoundError, FileNotFoundError):
         pass
+    if chip not in CHIPS:
+        raise BridgeError(f"no bundled image for chip {chip!r} (have: {', '.join(CHIPS)}); "
+                          "pass --firmware <path>")
     raise BridgeError(
-        "no bundled firmware image found — this build of esplink "
+        f"no bundled {chip} firmware image found — this build of esplink "
         "shipped without the prebuilt binary.\n"
         "Build it with `python tools/build_firmware.py`, install a release "
         "wheel (`pip install esplink`), or pass --firmware <path>."
@@ -116,16 +125,77 @@ def select_port(port: str | None = None) -> str:
     return _choose_port(ports)
 
 
+def detect_chip(port: str) -> str:
+    """Guess the board from the port's USB vendor ID."""
+    from serial.tools import list_ports
+
+    vid = next((p.vid for p in list_ports.comports() if p.device == port), None)
+    # ponytail: 303A is every Espressif native-USB chip, not just the S3; on a
+    # C3/C6 esptool refuses the S3 image (wrong chip) and --chip picks the right one.
+    return {0x303A: "esp32s3", 0x239A: "promicro"}.get(vid, "esp32")
+
+
+def _uf2_drives() -> list[Path]:
+    """Mounted UF2 bootloader drives (they all carry an INFO_UF2.TXT)."""
+    if sys.platform == "win32":
+        roots = [Path(f"{c}:/") for c in string.ascii_uppercase[2:]]
+    else:
+        roots = [*Path("/Volumes").glob("*"), *Path("/media").glob("*/*"),
+                 *Path("/run/media").glob("*/*")]
+    return [r for r in roots if (r / "INFO_UF2.TXT").is_file()]
+
+
+def _flash_uf2(port: str, fw: Path, timeout: float = 15.0) -> None:
+    """Pro Micro nRF52840: a 1200-baud touch drops the app into its UF2
+    bootloader, which mounts a drive; copying the .uf2 onto it is the flash."""
+    import serial
+
+    if not _uf2_drives():
+        with contextlib.suppress(serial.SerialException):
+            serial.Serial(port, 1200).close()
+    deadline = time.monotonic() + timeout
+    while not (drives := _uf2_drives()):
+        if time.monotonic() > deadline:
+            raise BridgeError("no UF2 bootloader drive appeared — double-tap the "
+                              "board's reset button and run this again")
+        time.sleep(0.25)
+    log.info(f"copying {fw.name} to {drives[0]}")
+    try:
+        shutil.copyfile(fw, drives[0] / fw.name)
+    except OSError:
+        # The bootloader reboots into the app as soon as the last block lands,
+        # which some OSes report as a failed copy: only a drive still there is one.
+        if (drives[0] / "INFO_UF2.TXT").exists():
+            raise
+
+
 def flash_firmware(port: str | None = None, *,
                    baud: int = DEFAULT_BAUD,
                    erase: bool = False,
                    firmware: str | Path | None = None,
-                   chip: str = FIRMWARE_CHIP) -> None:
-    """Write the (bundled, or given) firmware image to a board over USB serial.
+                   chip: str = "auto") -> None:
+    """Write the (bundled, or given) firmware image to a board over USB.
 
-    Drives esptool exactly the way the Arduino toolchain does for the initial
-    cable flash. Raises BridgeError on any failure.
+    ESP32 boards: drives esptool exactly the way the Arduino toolchain does for
+    the initial cable flash. Pro Micro: copies the UF2 onto its bootloader
+    drive. Raises BridgeError on any failure.
     """
+    port = select_port(port)
+    if chip == "auto":
+        chip = detect_chip(port)
+        log.info(f"board: {chip} (from the port's USB ID; --chip overrides)")
+    fw = Path(firmware) if firmware else firmware_path(chip)
+    if not fw.is_file():
+        raise BridgeError(f"firmware image not found: {fw}")
+
+    if fw.suffix == ".uf2":
+        if erase:
+            raise BridgeError("--erase is for the ESP32 boards only")
+        _flash_uf2(port, fw)
+        log.info("done — the board reboots into the bridge firmware "
+                 "(connect with `esplink info`)")
+        return
+
     try:
         import esptool
     except ModuleNotFoundError:
@@ -134,12 +204,6 @@ def flash_firmware(port: str | None = None, *,
             '  pip install "esplink[flash]"\n'
             '  uvx --from "esplink[flash]" esplink flash'
         )
-
-    fw = Path(firmware) if firmware else firmware_path()
-    if not fw.is_file():
-        raise BridgeError(f"firmware image not found: {fw}")
-
-    port = select_port(port)
 
     # All-dashed spellings throughout: esptool 5 renamed every underscore form
     # and the [flash] extra requires >=5, so there is no older syntax to serve.
@@ -179,15 +243,16 @@ def main(argv: list[str] | None = None) -> int:
     _force_utf8_output()
     ap = argparse.ArgumentParser(
         prog="flash",
-        description="Flash the bundled bridge firmware to an ESP32 over USB.")
+        description="Flash the bundled bridge firmware to a board over USB.")
     ap.add_argument("--version", action="version", version=f"esplink {__version__}")
     ap.add_argument("-p", "--port", help="serial port to flash (default: list ports and choose)")
     ap.add_argument("--baud", type=int, default=DEFAULT_BAUD,
                     help=f"flash baud rate (default: {DEFAULT_BAUD})")
     ap.add_argument("--erase", action="store_true",
                     help="erase the whole flash before writing (clears NVS / stored name)")
-    ap.add_argument("--firmware", help="flash this .bin instead of the bundled image")
-    ap.add_argument("--chip", default=FIRMWARE_CHIP, help=f"target chip (default: {FIRMWARE_CHIP})")
+    ap.add_argument("--firmware", help="flash this .bin/.uf2 instead of the bundled image")
+    ap.add_argument("--chip", default="auto",
+                    help=f"board: {', '.join(CHIPS)} (default: auto, from the USB ID)")
     args = ap.parse_args(argv)
     try:
         flash_firmware(args.port, baud=args.baud, erase=args.erase,

@@ -99,7 +99,8 @@ class SX128x:
 
     def __init__(self, bridge, *, cs, reset, busy, dio1=None,
                  freq=2_400_000_000, tx_power=13, sf=7, bw=400_000, cr=1,
-                 sck=18, miso=19, mosi=23, spi_freq=8_000_000):
+                 sck=None, miso=None, mosi=None, spi_freq=8_000_000,
+                 init_spi=True):
         if not (2_400_000_000 <= freq <= 2_500_000_000):
             raise ValueError(f"freq {freq} Hz out of SX1280 ISM band (2.400-2.500 GHz)")
         if not (-18 <= tx_power <= 13):
@@ -123,9 +124,8 @@ class SX128x:
         self._cr = cr
         self._preamble = 12      # LoRa preamble symbols
 
-        if sck is not None and miso is not None and mosi is not None:
-            self._b.spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq,
-                             mode=0, msb_first=True)
+        if init_spi:  # pins left out are the board's (esp.pins)
+            self._b.spi.init(freq=spi_freq, mode=0, msb_first=True, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
 
         gpio = self._b.gpio
         gpio.mode(reset, "output")

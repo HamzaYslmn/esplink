@@ -86,8 +86,8 @@ class SX126x:
     def __init__(self, bridge, *, cs: int, reset: int, busy: int,
                  dio1: int | None = None, freq: int = 868_000_000,
                  tx_power: int = 14, sf: int = 7, bw: int = 125_000, cr: int = 5,
-                 sck: int | None = 18, miso: int | None = 19, mosi: int | None = 23,
-                 spi_freq: int = 2_000_000):
+                 sck: int | None = None, miso: int | None = None, mosi: int | None = None,
+                 spi_freq: int = 2_000_000, init_spi: bool = True):
         if not 5 <= sf <= 12:
             raise ValueError(f"sf must be 5..12, got {sf}")
         if bw not in _BW:
@@ -110,8 +110,8 @@ class SX126x:
         self._cr_code = cr - 4
         self._preamble = 8
 
-        if sck is not None and miso is not None and mosi is not None:
-            self._spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq, mode=0)
+        if init_spi:  # pins left out are the board's (esp.pins)
+            self._spi.init(freq=spi_freq, mode=0, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
 
         # Control pins: RESET + CS are outputs we drive; BUSY (+ DIO1) are inputs.
         self._gpio.mode(reset, "output")

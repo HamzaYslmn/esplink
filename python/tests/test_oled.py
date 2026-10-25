@@ -73,7 +73,7 @@ def test_init_powers_both_chip_families_and_clears():
     esp = FakeEsp()
     esp.i2c.ram = [bytearray(b"\xa5" * 132) for _ in range(8)]  # power-on noise
     OLED(esp)
-    assert esp.i2c.inited == (21, 22, 400_000, 0)
+    assert esp.i2c.inited == (None, None, 400_000, 0)  # None = the board's pins
     assert all(w[0] == 0x3C for w in esp.i2c.writes)
     cmds = b"".join(w[1][1:] for w in esp.i2c.writes if w[1][0] == 0x00)
     assert bytes([0xAD, 0x8B]) in cmds   # SH1106 internal DC-DC on (harmless NOP on SSD1306)

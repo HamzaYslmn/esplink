@@ -216,8 +216,9 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="flash baud rate (default: 921600)")
     p_flash.add_argument("--erase", action="store_true",
                          help="erase the whole flash before writing (clears NVS)")
-    p_flash.add_argument("--firmware", help="flash this .bin instead of the bundled image")
-    p_flash.add_argument("--chip", default="esp32", help="target chip (default: esp32)")
+    p_flash.add_argument("--firmware", help="flash this .bin/.uf2 instead of the bundled image")
+    p_flash.add_argument("--chip", default="auto",
+                         help="board: esp32, esp32s3, promicro (default: auto, from the USB ID)")
     return ap
 
 

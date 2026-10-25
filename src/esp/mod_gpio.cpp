@@ -4,11 +4,11 @@
 #include "esplink/modules.h"
 #include <esp_timer.h>
 
-struct EdgeRaw { uint8_t pin; uint8_t level; uint32_t ms; };
+struct EdgeRaw { uint8_t pin; uint8_t level; uint32_t us; };
 static QueueHandle_t edgeq;
 
 static uint16_t debounce_ms[SOC_GPIO_PIN_COUNT];   // per watched pin
-static uint32_t last_edge_ms[SOC_GPIO_PIN_COUNT];
+static uint32_t last_edge_us[SOC_GPIO_PIN_COUNT];
 static uint8_t pin_mode[SOC_GPIO_PIN_COUNT];       // last mode set via SET_MODE (0xFF = unknown)
 
 static bool is_valid_pin(uint8_t pin) {
@@ -27,7 +27,7 @@ static bool is_strap_pin(uint8_t pin) {
 
 static void IRAM_ATTR gpio_edge_isr(void* arg) {
   uint8_t pin = (uint8_t)(uintptr_t)arg;
-  EdgeRaw e = { pin, (uint8_t)digitalRead(pin), (uint32_t)(esp_timer_get_time() / 1000ULL) };
+  EdgeRaw e = { pin, (uint8_t)digitalRead(pin), (uint32_t)esp_timer_get_time() };
   BaseType_t hpw = pdFALSE;
   xQueueSendFromISR(edgeq, &e, &hpw);
   if (hpw) portYIELD_FROM_ISR();
@@ -43,12 +43,12 @@ void gpio_poll() {
   while (xQueueReceive(edgeq, &e, 0) == pdTRUE) {
     if (e.pin >= SOC_GPIO_PIN_COUNT) continue;
     uint16_t db = debounce_ms[e.pin];
-    if (db && (uint32_t)(e.ms - last_edge_ms[e.pin]) < db) continue;
-    last_edge_ms[e.pin] = e.ms;
+    if (db && (uint32_t)(e.us - last_edge_us[e.pin]) < db * 1000u) continue;
+    last_edge_us[e.pin] = e.us;
     uint8_t buf[6];
     buf[0] = e.pin;
     buf[1] = e.level;
-    write_be32(buf + 2, e.ms);
+    write_be32(buf + 2, e.us);
     proto_send_event(GPIO_EDGE_EVT, buf, 6);
   }
 }
@@ -123,7 +123,7 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       int mode = edge == 1 ? RISING : edge == 2 ? FALLING : edge == 3 ? CHANGE : -1;
       if (mode < 0) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       debounce_ms[pin] = read_be16(p + 2);
-      last_edge_ms[pin] = 0;
+      last_edge_us[pin] = 0;
       attachInterruptArg(digitalPinToInterrupt(pin), gpio_edge_isr, (void*)(uintptr_t)pin, mode);
       proto_reply_ok(seq, cmd);
       break;

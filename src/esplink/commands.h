@@ -3,13 +3,13 @@
 #pragma once
 #include <stdint.h>
 
-#define PROTOCOL_VERSION 1
+#define PROTOCOL_VERSION 2  // 2: GPIO_EDGE_EVT carries micros, not millis
 // Firmware version, identical to library.properties and python/pyproject.toml so
 // SYS_INFO names the exact release (test_contract_sync.py enforces the lockstep).
 // PROTOCOL_VERSION above remains the hard compatibility gate.
-#define FW_VERSION_MAJOR 2
+#define FW_VERSION_MAJOR 3
 #define FW_VERSION_MINOR 0
-#define FW_VERSION_PATCH 1
+#define FW_VERSION_PATCH 0
 
 // Frame (logical, pre-COBS):
 //   flags u8 | seq u8 | cmd u16 BE | payload .. | crc16 BE
@@ -153,7 +153,7 @@ enum ChipModel : uint8_t {
 #define GPIO_UNWATCH    CMD(MOD_GPIO, 0x07) // pin u8
 #define GPIO_STATUS     CMD(MOD_GPIO, 0x08) // pin u8 -> level u8|mode u8 (0..4 as SET_MODE; 0xFF = not set via bridge)|pwm_freq u32|pwm_duty u32
 #define GPIO_DUMP       CMD(MOD_GPIO, 0x09) // -> count u8, then per active pin: pin u8|mode u8|level u8|pwm_freq u32|pwm_duty u32 (pins set via bridge or PWM-driven)
-#define GPIO_EDGE_EVT   CMD(MOD_GPIO, 0x80) // pin u8|level u8|millis u32
+#define GPIO_EDGE_EVT   CMD(MOD_GPIO, 0x80) // pin u8|level u8|micros u32 (wraps ~71 min)
 
 // ADC
 #define ADC_CONFIG      CMD(MOD_ADC, 0x01)  // pin u8|atten u8 (0:0dB 1:2.5dB 2:6dB 3:11dB)

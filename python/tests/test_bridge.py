@@ -193,7 +193,7 @@ def test_gpio_edge_events_dispatch(bridge, fw):
     assert fw.watching[4] == (2, 20)
     fw.emit(C.GPIO_EDGE_EVT, bytes([4, 0]) + (12345).to_bytes(4, "big"))
     assert done.wait(2.0)
-    assert got[0].pin == 4 and got[0].level == 0 and got[0].millis == 12345
+    assert got[0].pin == 4 and got[0].level == 0 and got[0].micros == 12345
 
 
 def test_event_callback_can_make_requests(bridge, fw):

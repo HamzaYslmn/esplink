@@ -40,7 +40,7 @@ def test_event_stream_subscribes_before_first_await(fw):
         stream = esp.events(C.GPIO_EDGE_EVT, EdgeEvent.parse)
         fw.emit(C.GPIO_EDGE_EVT, bytes([4, 0]) + struct.pack(">I", 12345))  # before iterating
         ev = await asyncio.wait_for(anext(stream), timeout=2.0)
-        assert (ev.pin, ev.level, ev.millis) == (4, 0, 12345)
+        assert (ev.pin, ev.level, ev.micros) == (4, 0, 12345)
         await stream.aclose()                        # unsubscribes
     _async(fw, scenario)
 
@@ -80,6 +80,6 @@ def test_timed_out_wait_keeps_the_stream(fw):
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(anext(stream), timeout=0.05)
         fw.emit(C.GPIO_EDGE_EVT, bytes([4, 1]) + struct.pack(">I", 7))
-        assert (await asyncio.wait_for(anext(stream), timeout=2.0)).millis == 7
+        assert (await asyncio.wait_for(anext(stream), timeout=2.0)).micros == 7
         await stream.aclose()
     _async(fw, scenario)

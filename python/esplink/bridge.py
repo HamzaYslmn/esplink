@@ -910,6 +910,12 @@ class Bridge:
             raise ProtocolError("ping payload mismatch")
         return time.perf_counter() - t0
 
+    @property
+    def pins(self) -> C.Pins:
+        """This board's default pins (LED, I2C, SPI, UART): what ``init()`` calls
+        use when you pass none, and handy as ``esp.gpio.write(esp.pins.led, 1)``."""
+        return C.PINS.get(self.info.chip if self.info else None, C.PINS[C.ChipModel.ESP32])
+
     def require(self, cap: C.Cap, what: str) -> None:
         """Raise :class:`UnsupportedError` if the board lacks ``cap``; ``what`` is
         the human name used in the message. Used by sub-APIs to fail clearly on

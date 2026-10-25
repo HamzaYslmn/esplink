@@ -60,8 +60,8 @@ _BITREV = bytes(int(f"{i:08b}"[::-1], 2) for i in range(256))
 class OLED:
     """A 128x64/128x32 I2C OLED driven directly over the bridge."""
 
-    def __init__(self, esp, *, addr: int | None = None, sda: int = 21,
-                 scl: int = 22, freq: int = 400_000, bus: int = 0,
+    def __init__(self, esp, *, addr: int | None = None, sda: int | None = None,
+                 scl: int | None = None, freq: int = 400_000, bus: int = 0,
                  width: int = 128, height: int = 64, colstart: int = 0,
                  contrast: int = 0xCF, init_bus: bool = True):
         try:

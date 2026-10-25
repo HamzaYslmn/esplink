@@ -22,11 +22,11 @@ EDGES = {"rising": 1, "falling": 2, "change": 3, "both": 3}  # "both": gpiozero/
 class EdgeEvent:
     pin: int
     level: int
-    millis: int  # firmware uptime ms
+    micros: int  # firmware time of the edge in µs (u32, wraps every ~71 min)
 
     @classmethod
     def parse(cls, payload: bytes) -> EdgeEvent | None:
-        """Decode a GPIO_EDGE_EVT payload (pin u8 | level u8 | millis u32);
+        """Decode a GPIO_EDGE_EVT payload (pin u8 | level u8 | micros u32);
         None if it's too short to be a valid event."""
         if len(payload) < 6:
             return None

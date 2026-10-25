@@ -21,14 +21,14 @@ uint32_t nrf_pwm_read(uint8_t pin, uint32_t* duty);  // mod_pwm.cpp
 // so each watchable pin needs its own no-arg ISR. A small fixed slot table with
 // one trampoline per slot maps back to the pin (GPIOTE has 8 channels anyway).
 #define MAX_WATCH 8
-struct EdgeRaw { uint8_t pin; uint8_t level; uint32_t ms; };
+struct EdgeRaw { uint8_t pin; uint8_t level; uint32_t us; };
 static QueueHandle_t edgeq;
-struct WatchSlot { bool used; uint8_t pin; uint16_t debounce; uint32_t last_ms; };
+struct WatchSlot { bool used; uint8_t pin; uint16_t debounce; uint32_t last_us; };
 static WatchSlot slots[MAX_WATCH];
 
 static void edge_common(uint8_t s) {
   if (!slots[s].used) return;
-  EdgeRaw e = { slots[s].pin, (uint8_t)digitalRead(slots[s].pin), millis() };
+  EdgeRaw e = { slots[s].pin, (uint8_t)digitalRead(slots[s].pin), (uint32_t)micros() };
   BaseType_t hpw = pdFALSE;
   xQueueSendFromISR(edgeq, &e, &hpw);
   portYIELD_FROM_ISR(hpw);  // vanilla FreeRTOS: macro takes the woken flag
@@ -60,12 +60,12 @@ void gpio_poll() {
     int s = slot_of_pin(e.pin);
     if (s < 0) continue;
     uint16_t db = slots[s].debounce;
-    if (db && (uint32_t)(e.ms - slots[s].last_ms) < db) continue;
-    slots[s].last_ms = e.ms;
+    if (db && (uint32_t)(e.us - slots[s].last_us) < db * 1000u) continue;
+    slots[s].last_us = e.us;
     uint8_t buf[6];
     buf[0] = e.pin;
     buf[1] = e.level;
-    write_be32(buf + 2, e.ms);
+    write_be32(buf + 2, e.us);
     proto_send_event(GPIO_EDGE_EVT, buf, 6);
   }
 }

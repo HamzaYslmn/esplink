@@ -16,19 +16,23 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.2   # no moving major tag for this action
 
-      # MARK: - Build the bundled firmware image (Huge APP) shipped in the wheel
+      # MARK: - Build the bundled firmware images (ESP32, ESP32-S3, Pro Micro) shipped in the wheel
       - uses: arduino/setup-arduino-cli@v2
 
-      - name: Install ESP32 core
+      - name: Install ESP32 + Seeed nRF52 cores
+        env:
+          URLS: https://espressif.github.io/arduino-esp32/package_esp32_index.json,https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json
         run: |
-          arduino-cli core update-index \
-            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core install esp32:esp32@3.3.12 \
-            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index --additional-urls "$URLS"
+          arduino-cli core install esp32:esp32@3.3.12 Seeeduino:nrf52@1.1.13 --additional-urls "$URLS"
 
-      - name: Build firmware image
+      # The nRF52 core packages every build with adafruit-nrfutil, and ships it for Windows/macOS only
+      - name: Install adafruit-nrfutil
+        run: uv tool install adafruit-nrfutil
+
+      - name: Build firmware images
         run: |
-          uv run --with esptool python tools/build_firmware.py
+          uv run --no-project python tools/build_firmware.py
 
       - name: Build sdist + wheel
         working-directory: python

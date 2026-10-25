@@ -237,7 +237,8 @@ def _register_composites(mcp, mgr) -> None:
     def uart_read(port: int, n: int | None = None, timeout: float = 1.0) -> dict:
         """Read buffered bytes from a UART (up to n; all if omitted). Returns both
         hex and a best-effort UTF-8 decode."""
-        data = _port(port).read(n, timeout=timeout)
+        p = _port(port)
+        data = p.read(n, timeout=timeout) if n else p.read(1, timeout=timeout) + p.read_all()
         return {"hex": data.hex(), "text": data.decode("utf-8", "replace")}
 
     @mcp.tool

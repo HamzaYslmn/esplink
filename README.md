@@ -18,7 +18,7 @@ and change.
 ```sh
 pip install esplink               # USB + Bluetooth + Wi-Fi
 pip install "esplink[oled]"       # + Pillow for displays   ([mcp], [flash], [all])
-npm i esplink                     # JavaScript: browser and Node
+npm i @hamzayslmn/esplink         # JavaScript: browser and Node
 ```
 
 **Flash the firmware once** — the prebuilt image, no Arduino IDE needed:
@@ -43,11 +43,11 @@ Details and build flags: [docs/FIRMWARE.md](docs/FIRMWARE.md).
 from esplink import Bridge
 
 with Bridge() as esp:                     # USB first, then Bluetooth, then Wi-Fi
-    esp.gpio.mode(2, "output")
-    esp.gpio.write(2, 1)                  # returns the pin's read-back level
+    esp.gpio.mode(esp.pins.led, "output") # the board's LED (S3/C3: a WS2812 on esp.pins.rgb)
+    esp.gpio.write(esp.pins.led, 1)       # returns the pin's read-back level
     print(esp.adc.read_mv(34), "mV")
     esp.pwm.servo(13, angle=90)
-    esp.i2c.init(sda=21, scl=22)
+    esp.i2c.init()                        # the board's SDA/SCL; or init(sda=1, scl=2)
     print(esp.i2c.scan())
 ```
 
@@ -68,10 +68,10 @@ A link keyword pins the link — no silent fallback. On the command line:
 
 | | |
 |---|---|
-| `esp.gpio` | modes, read/write, `write_many`, `status`, edge interrupts → callbacks |
+| `esp.gpio` | modes, read/write, `write_many`, `status`, edge interrupts → callbacks (µs timestamps) |
 | `esp.adc` / `dac` / `touch` | mV reads, true 8-bit DAC + cosine generator, touch pads |
 | `esp.pwm` / `mcpwm` | LEDC duty/tone/servo; complementary pairs with deadtime |
-| `esp.i2c` / `spi` / `uart` | buses; UART RX streams back as events |
+| `esp.i2c` / `spi` / `uart` | buses on the board's default pins (`esp.pins`) or any you name; UART ports behave like pyserial |
 | `esp.rmt` / `onewire` | pulse trains and 1-Wire primitives (the drivers below) |
 | `esp.can` / `i2s` | TWAI bus; PCM in/out |
 | `esp.fs` / `nvs` / `ota` | LittleFS/SD files; key/value store; firmware update over the link |
@@ -155,13 +155,13 @@ with Bridge.all(wifi=True) as boards:
 
 ## JavaScript
 
-Same protocol and API shape, camelCased — [js/README.md](js/README.md).
+Same protocol and the same names as Python (`esp.info.fw_version`, `esp.adc.read_mv`, …) — [js/README.md](js/README.md).
 
 ```js
-import { connectSerial, connectBle } from "esplink/web";   // or "esplink/node"
-const esp = await connectSerial();                          // from a click handler
+import { connect_serial, connect_ble } from "@hamzayslmn/esplink/web";   // or "@hamzayslmn/esplink/node"
+const esp = await connect_serial();                          // from a click handler
 await esp.gpio.write(2, 1);
-console.log(await esp.adc.readMv(34));
+console.log(await esp.adc.read_mv(34));
 ```
 
 ## AI agents (MCP)

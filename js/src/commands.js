@@ -1,8 +1,8 @@
 // GENERATED from src/esplink/commands.h by scripts/gen-commands.mjs — do not edit.
-export const PROTOCOL_VERSION = 1;
-export const FW_VERSION_MAJOR = 2;
+export const PROTOCOL_VERSION = 2;
+export const FW_VERSION_MAJOR = 3;
 export const FW_VERSION_MINOR = 0;
-export const FW_VERSION_PATCH = 1;
+export const FW_VERSION_PATCH = 0;
 export const FLAG_EVENT = 1;
 export const FLAG_ERROR = 2;
 export const FLAG_MORE = 4;
@@ -227,3 +227,4 @@ export const WATCH_LIST = 0x7404;
 export const WATCH_ADD2 = 0x7405;
 export const WATCH_EVT = 0x7480;
 export const STATUS = { 0: "OK", 1: "UNKNOWN_CMD", 2: "BAD_ARGS", 3: "UNSUPPORTED", 4: "BUSY", 5: "TIMEOUT", 6: "NO_MEM", 7: "BAD_PIN", 8: "NOT_INIT", 9: "IO", 10: "WIFI", 11: "SOCKET", 12: "CRC", 13: "DENIED", 14: "NOT_FOUND" };
+export const CHIP = { 0: "UNKNOWN", 1: "ESP32", 3: "ESP32S3", 4: "ESP32C3", 7: "NRF52840" };

@@ -19,7 +19,7 @@ bilgisayar tarafında yaşar.
 ```sh
 pip install esplink               # USB + Bluetooth + Wi-Fi
 pip install "esplink[oled]"       # + ekranlar için Pillow   ([mcp], [flash], [all])
-npm i esplink                     # JavaScript: tarayıcı ve Node
+npm i @hamzayslmn/esplink         # JavaScript: tarayıcı ve Node
 ```
 
 **Firmware'i bir kez yükleyin** — hazır imaj, Arduino IDE gerekmez:
@@ -44,11 +44,11 @@ Ayrıntılar ve derleme bayrakları: [FIRMWARE.md](FIRMWARE.md).
 from esplink import Bridge
 
 with Bridge() as esp:                     # önce USB, sonra Bluetooth, sonra Wi-Fi
-    esp.gpio.mode(2, "output")
-    esp.gpio.write(2, 1)                  # pinin geri okunan seviyesini döndürür
+    esp.gpio.mode(esp.pins.led, "output") # kartın LED'i (S3/C3: esp.pins.rgb'de bir WS2812)
+    esp.gpio.write(esp.pins.led, 1)       # pinin geri okunan seviyesini döndürür
     print(esp.adc.read_mv(34), "mV")
     esp.pwm.servo(13, angle=90)
-    esp.i2c.init(sda=21, scl=22)
+    esp.i2c.init()                        # kartın SDA/SCL'si; ya da init(sda=1, scl=2)
     print(esp.i2c.scan())
 ```
 
@@ -70,10 +70,10 @@ satırında: `esplink` (bilgi), `esplink ports`, `esplink scan [--ble]`,
 
 | | |
 |---|---|
-| `esp.gpio` | modlar, okuma/yazma, `write_many`, `status`, kenar kesmeleri → callback'ler |
+| `esp.gpio` | modlar, okuma/yazma, `write_many`, `status`, kenar kesmeleri → callback'ler (µs zaman damgası) |
 | `esp.adc` / `dac` / `touch` | mV okumaları, gerçek 8-bit DAC + kosinüs üreteci, dokunmatik pedler |
 | `esp.pwm` / `mcpwm` | LEDC duty/ton/servo; deadtime'lı tamamlayıcı çiftler |
-| `esp.i2c` / `spi` / `uart` | veri yolları; UART RX olay olarak geri akar |
+| `esp.i2c` / `spi` / `uart` | kartın varsayılan pinlerinde (`esp.pins`) ya da verdiğiniz pinlerde veri yolları; UART portları pyserial gibi davranır |
 | `esp.rmt` / `onewire` | darbe dizileri ve 1-Wire ilkelleri (aşağıdaki sürücüler) |
 | `esp.can` / `i2s` | TWAI veri yolu; PCM giriş/çıkış |
 | `esp.fs` / `nvs` / `ota` | LittleFS/SD dosyaları; anahtar/değer deposu; bağlantı üzerinden firmware güncelleme |
@@ -160,13 +160,13 @@ with Bridge.all(wifi=True) as boards:
 
 ## JavaScript
 
-Aynı protokol ve API biçimi, camelCase — [js/README.md](../js/README.md).
+Aynı protokol ve Python ile aynı adlar (`esp.info.fw_version`, `esp.adc.read_mv`, …) — [js/README.md](../js/README.md).
 
 ```js
-import { connectSerial, connectBle } from "esplink/web";   // veya "esplink/node"
-const esp = await connectSerial();                          // bir tıklama işleyicisinden
+import { connect_serial, connect_ble } from "@hamzayslmn/esplink/web";   // veya "@hamzayslmn/esplink/node"
+const esp = await connect_serial();                          // bir tıklama işleyicisinden
 await esp.gpio.write(2, 1);
-console.log(await esp.adc.readMv(34));
+console.log(await esp.adc.read_mv(34));
 ```
 
 ## Yapay zekâ ajanları (MCP)

@@ -56,7 +56,7 @@ class LumaSPI:
     """
 
     def __init__(self, esp, *, dc: int, rst: int | None = None, cs: int | None = None,
-                 sck: int = 18, mosi: int = 23, miso: int = 19,
+                 sck: int | None = None, mosi: int | None = None, miso: int | None = None,
                  freq: int = 8_000_000, host: int = 0, init_bus: bool = True):
         self._spi = esp.spi
         self._gpio = esp.gpio

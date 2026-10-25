@@ -22,8 +22,13 @@ class I2c:
         self.max_write = C.MAX_PAYLOAD - 2  # bus index + device address precede the data
         self.buses: dict[int, dict] = {}  # bus -> {sda, scl, freq}, as configured
 
-    def init(self, *, sda: int = 21, scl: int = 22, freq: int = 400_000, bus: int = 0) -> None:
-        """Configure a bus's pins and clock; call once before any transfer."""
+    def init(self, *, sda: int | None = None, scl: int | None = None, freq: int = 400_000,
+             bus: int = 0) -> None:
+        """Configure a bus's pins and clock; call once before any transfer.
+        Pins default to the board's (``esp.pins.sda`` / ``.scl``)."""
+        pins = self._b.pins
+        sda = pins.sda if sda is None else sda
+        scl = pins.scl if scl is None else scl
         r = self._b.request(C.I2C_INIT, struct.pack(">BBBI", bus, sda, scl, freq))
         self.max_write = struct.unpack(">H", r[:2])[0] - 2
         self.buses[bus] = {"sda": sda, "scl": scl, "freq": freq}

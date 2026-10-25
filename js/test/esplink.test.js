@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { generate, OUT } from "../scripts/gen-commands.mjs";
-import { Bridge, C, RemoteError, TimeoutError } from "../src/bridge.js";
+import { Bridge, BridgeTimeoutError, C, PINS, RemoteError } from "../src/bridge.js";
 import { crc16, decodeFrame, encodeFrame, FrameSplitter } from "../src/protocol.js";
 
 const hex = (u8) => Buffer.from(u8).toString("hex");
@@ -52,6 +52,7 @@ function fakeBoard({ password = "esplink", maxInflight = 6400 } = {}) {
         else if (cmd === C.SYS_PING) ok(p);
         else if (cmd === C.GPIO_WRITE) ok(Uint8Array.of(p[1]));
         else if (cmd === C.GPIO_WATCH) { ok(); t.reply(C.FLAG_EVENT, 0, C.GPIO_EDGE_EVT, Uint8Array.of(p[0], 1, 0, 0, 1, 0)); }
+        else if (cmd === C.GPIO_UNWATCH) ok();
         else if (cmd === C.SYS_FREE_HEAP) ok(Uint8Array.from({ length: 24 }, (_, i) => (i % 4 === 3 ? i : 0)));
         else if (cmd === C.SYS_RESET) { /* silence: the board is rebooting */ }
         else err(0x01);
@@ -66,7 +67,9 @@ test("Bridge: handshake, requests, events, errors, flow control", async () => {
   const esp = await Bridge.open(board);
   assert.equal(esp.info.ident, "relays");
   assert.equal(esp.info.mac, "24:a1:60:12:34:56");
-  assert.deepEqual(esp.info.fwVersion, [1, 0, 1]);
+  assert.deepEqual(esp.info.fw_version, [1, 0, 1]);
+  assert.equal(esp.info.chip, "ESP32");
+  assert.equal(esp.pins.led, 2);
 
   // 100 concurrent requests through a 64-byte window: all answered, window held
   const levels = await Promise.all(Array.from({ length: 100 }, (_, i) => esp.gpio.write(2, i % 2)));
@@ -74,14 +77,14 @@ test("Bridge: handshake, requests, events, errors, flow control", async () => {
   assert.ok(board.peak <= 64 + 16, `window overrun: ${board.peak} bytes in flight`);
 
   const edges = [];
-  const unwatch = await esp.gpio.watch(4, "falling", (ev) => edges.push(ev));
+  await esp.gpio.watch(4, "falling", 0, (ev) => edges.push(ev));     // Python's argument order
   await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(edges, [{ pin: 4, level: 1, millis: 256 }]);
-  assert.equal(typeof unwatch, "function");
+  assert.deepEqual(edges, [{ pin: 4, level: 1, micros: 256 }]);
+  await esp.gpio.unwatch(4);
 
-  assert.equal((await esp.freeHeap()).serialRxErrors, 23);
+  assert.equal((await esp.free_heap()).serial_rx_errors, 23);
   await assert.rejects(esp.request(C.CAN_INIT), (e) => e instanceof RemoteError && /UNKNOWN_CMD/.test(e.message));
-  await assert.rejects(esp.request(C.SYS_RESET, undefined, 30), TimeoutError);
+  await assert.rejects(esp.request(C.SYS_RESET, undefined, 0.03), BridgeTimeoutError);  // seconds, as in Python
   await esp.close();
 });
 
@@ -103,10 +106,20 @@ test("Bridge: a timed-out request settles once", async () => {
   const esp = await Bridge.open(board);
   const write = board.write;
   board.write = async (d) => { await new Promise((r) => setTimeout(r, 40)); throw new Error("link gone"); };
-  await assert.rejects(esp.request(C.SYS_PING, undefined, 10), TimeoutError);  // then the write rejects too
+  await assert.rejects(esp.request(C.SYS_PING, undefined, 0.01), BridgeTimeoutError);  // then the write rejects too
   await new Promise((r) => setTimeout(r, 60));
   board.write = write;
   const pings = await Promise.all(Array.from({ length: 5 }, () => esp.ping()));
   assert.equal(pings.length, 5);
   await esp.close();
+});
+
+test("PINS mirror python/esplink/constants.py", () => {
+  const py = readFileSync(new URL("../../python/esplink/constants.py", import.meta.url), "utf8");
+  for (const [chip, pins] of Object.entries(PINS)) {
+    const row = py.match(new RegExp(`ChipModel\\.${chip}:\\s*Pins\\(([^)]*)\\)`))[1];
+    const want = Object.fromEntries(row.split(",").map((kv) => kv.trim().split("="))
+      .map(([k, v]) => [k, v === "None" ? null : Number(v)]));
+    assert.deepEqual(pins, want, chip);
+  }
 });

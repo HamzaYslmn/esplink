@@ -6,7 +6,7 @@ LoRa radio for the 433 / 868 / 915 MHz ISM bands. No firmware change needed.
     from esplink import Bridge
 
     with Bridge() as esp:
-        # NSS/CS on GPIO5, RESET on GPIO14, default VSPI pins (sck=18/miso=19/mosi=23)
+        # NSS/CS on GPIO5, RESET on GPIO14, the board's default SPI pins
         lora = esp.sx127x(cs=5, reset=14, freq=868_000_000)
 
         # --- transmitter ---
@@ -80,7 +80,8 @@ class SX127x:
 
     def __init__(self, bridge, *, cs, reset=None, dio0=None,
                  freq=433_000_000, tx_power=17, sf=7, bw=125_000, cr=5,
-                 sync_word=0x12, sck=18, miso=19, mosi=23, spi_freq=1_000_000):
+                 sync_word=0x12, sck=None, miso=None, mosi=None, spi_freq=1_000_000,
+                 init_spi=True):
         if not 0x00 <= int(sync_word) <= 0xFF:
             raise ValueError(f"sync_word must be a byte 0x00..0xFF, got {sync_word:#x}")
         self._spi = bridge.spi
@@ -89,10 +90,10 @@ class SX127x:
         self._reset = reset
         self._dio0 = dio0
 
-        # Bring up the SPI host only when the user gave bus pins; otherwise assume
-        # esp.spi.init(...) was already called. SX1276 is SPI mode 0, MSB-first.
-        if sck is not None and miso is not None and mosi is not None:
-            self._spi.init(sck=sck, miso=miso, mosi=mosi, freq=spi_freq, mode=0)
+        # SX1276 is SPI mode 0, MSB-first. Pins left out are the board's (esp.pins);
+        # init_spi=False keeps a bus already set up with esp.spi.init(...).
+        if init_spi:
+            self._spi.init(freq=spi_freq, mode=0, **{k: v for k, v in (('sck', sck), ('miso', miso), ('mosi', mosi)) if v is not None})
 
         # Hardware reset: NRESET is active-low; hold low >=100us, then wait 5ms (datasheet 7.2.2).
         if reset is not None:

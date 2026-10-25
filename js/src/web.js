@@ -10,10 +10,10 @@ const RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";       // host -> board
 const TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";       // board -> host (notify)
 const USB = [0x10c4, 0x1a86, 0x303a].map((usbVendorId) => ({ usbVendorId }));  // CP210x, CH34x, native
 
-/** USB serial. Pass `port` to reuse one from navigator.serial.getPorts(). */
-export async function connectSerial({ port, baudRate = 115200, ...opts } = {}) {
+/** USB serial. Pass `port` (a SerialPort from navigator.serial.getPorts()) to skip the picker. */
+export async function connect_serial({ port, baud = 115200, ...opts } = {}) {
   port ??= await navigator.serial.requestPort({ filters: USB });
-  await port.open({ baudRate, bufferSize: 8192 });
+  await port.open({ baudRate: baud, bufferSize: 8192 });
   const reader = port.readable.getReader();
   const writer = port.writable.getWriter();
   const t = {
@@ -38,7 +38,7 @@ export async function connectSerial({ port, baudRate = 115200, ...opts } = {}) {
 }
 
 /** Bluetooth. Shows boards advertising as "esplink_<name-or-mac>". */
-export async function connectBle({ device, ...opts } = {}) {
+export async function connect_ble({ device, ...opts } = {}) {
   device ??= await navigator.bluetooth.requestDevice({
     filters: [{ namePrefix: "esplink_" }],
     optionalServices: [SERVICE],

@@ -26,7 +26,7 @@ import threading
 class I2C:
     """busio.I2C-compatible bus on the ESP32's I2C."""
 
-    def __init__(self, esp, *, sda: int = 21, scl: int = 22,
+    def __init__(self, esp, *, sda: int | None = None, scl: int | None = None,
                  frequency: int = 400_000, bus: int = 0, init: bool = True):
         self._i2c = esp.i2c
         self._bus = bus
@@ -81,7 +81,7 @@ class SPI:
     ``adafruit_bus_device.spi_device.SPIDevice``, exactly like on a Pi.
     """
 
-    def __init__(self, esp, *, sck: int = 18, mosi: int = 23, miso: int = 19,
+    def __init__(self, esp, *, sck: int | None = None, mosi: int | None = None, miso: int | None = None,
                  host: int = 0):
         self._spi = esp.spi
         self._host = host

@@ -7,12 +7,12 @@ export * from "./bridge.js";
 
 const USB = ["10c4", "1a86", "303a"];  // CP210x, CH34x, Espressif native USB
 
-/** USB serial; `path` defaults to the first ESP32-looking port. */
-export async function connectSerial({ path, baudRate = 115200, ...opts } = {}) {
+/** USB serial; `port` defaults to the first ESP32-looking one (like Python's Bridge(port=...)). */
+export async function connect_serial({ port: path, baud = 115200, ...opts } = {}) {
   const { SerialPort } = await import("serialport");
   path ??= (await SerialPort.list()).find((p) => USB.includes(p.vendorId?.toLowerCase()))?.path;
-  if (!path) throw new BridgeError("no ESP32 serial port found — pass { path: 'COM5' }");
-  const port = new SerialPort({ path, baudRate });
+  if (!path) throw new BridgeError("no ESP32 serial port found — pass { port: 'COM5' }");
+  const port = new SerialPort({ path, baudRate: baud });
   await once(port, "open");
   const t = {
     maxInflight: 6400,
@@ -25,8 +25,8 @@ export async function connectSerial({ path, baudRate = 115200, ...opts } = {}) {
 }
 
 /** Wi-Fi link to a board in listen mode (firmware: EspLink.wifi.begin(...)). */
-export async function connectTcp({ host, port = 3232, ...opts }) {
-  const sock = net.connect({ host, port });
+export async function connect_tcp({ host, tcp_port = 3232, ...opts }) {
+  const sock = net.connect({ host, port: tcp_port });
   await once(sock, "connect");
   sock.setNoDelay(true);  // Nagle would turn a 2 ms round trip into ~40 ms
   const t = {

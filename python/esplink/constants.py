@@ -5,8 +5,9 @@ MUST stay in sync with src/esplink/commands.h.
 from __future__ import annotations
 
 import enum
+from typing import NamedTuple
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 # Frame (logical, pre-COBS):
 #   flags u8 | seq u8 | cmd u16 BE | payload .. | crc16 BE
@@ -370,6 +371,32 @@ def cmd_name(cmd: int) -> str:
 
 
 # USB-UART bridge chips found on ESP32 dev boards: (vid, pid) -> chip
+class Pins(NamedTuple):
+    """A board's default pins (``esp.pins``): what an ``init()`` uses when you
+    pass none. From each board's Arduino variant (pins_arduino.h); every one can
+    be overridden. ``led`` is a plain LED, ``rgb`` an addressable WS2812 one
+    (drive it with ``esp.neopixel(pin=esp.pins.rgb, n=1)``); None = not fitted."""
+    led: int | None
+    rgb: int | None
+    sda: int
+    scl: int
+    sck: int
+    miso: int
+    mosi: int
+    cs: int | None
+    tx: int
+    rx: int
+
+
+PINS = {
+    ChipModel.ESP32:    Pins(led=2, rgb=None, sda=21, scl=22, sck=18, miso=19, mosi=23, cs=5, tx=17, rx=16),
+    ChipModel.ESP32S3:  Pins(led=None, rgb=48, sda=8, scl=9, sck=12, miso=13, mosi=11, cs=10, tx=16, rx=15),
+    # UART1's core defaults (19/18) are the C3's native-USB lines; 21/20 (UART0) are free.
+    ChipModel.ESP32C3:  Pins(led=None, rgb=8, sda=8, scl=9, sck=4, miso=5, mosi=6, cs=7, tx=21, rx=20),
+    ChipModel.NRF52840: Pins(led=11, rgb=None, sda=4, scl=5, sck=15, miso=14, mosi=16, cs=None, tx=1, rx=0),
+}
+
+
 KNOWN_USB_IDS = {
     (0x10C4, 0xEA60): "cp210x",   # CP2102/CP2104 (most DevKitC)
     (0x1A86, 0x7523): "ch340",    # CH340

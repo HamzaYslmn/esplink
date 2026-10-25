@@ -30,10 +30,11 @@ _applied: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()  # esp.spi -> 
 
 class SpiDev:
     def __init__(self, esp, bus: int | None = None, device: int | None = None, *,
-                 sck: int = 18, mosi: int = 23, miso: int = 19, ce=(5, 15)):
+                 sck: int | None = None, mosi: int | None = None, miso: int | None = None,
+                 ce=None):
         self._spi = esp.spi
         self._pins = {"sck": sck, "miso": miso, "mosi": mosi}
-        self._ce = tuple(ce)
+        self._ce = tuple(ce) if ce is not None else (esp.pins.cs, 15)  # CE0, CE1
         self._host = self._cs = None
         self.mode = 0
         self.max_speed_hz = 500_000  # what gpiozero sets on a Pi

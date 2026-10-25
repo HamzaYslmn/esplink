@@ -262,6 +262,11 @@ class FakeFirmware:
             self._reply(seq, cmd)
 
         # ---- I2C ----
+        elif cmd in (C.UART_INIT, C.UART_DEINIT):
+            self._reply(seq, cmd)
+        elif cmd == C.UART_WRITE:  # TX jumpered to RX: what's written comes back
+            self._reply(seq, cmd)
+            self.emit(C.UART_RX_EVT, p)
         elif cmd == C.I2C_INIT:
             self.i2c_inited = True
             self._reply(seq, cmd, struct.pack(">H", C.MAX_PAYLOAD))

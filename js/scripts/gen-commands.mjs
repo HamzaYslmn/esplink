@@ -29,11 +29,14 @@ export function generate(text = readFileSync(HEADER, "utf8")) {
   const status = [...text.match(/enum\s+Status\s*:\s*uint8_t\s*\{([\s\S]+?)\}/)[1]
     .matchAll(/ST_(\w+)\s*=\s*(0x[0-9a-f]+|\d+)/gi)].map(([, n, v]) => [Number(v), n]);
 
+  const chips = [...text.match(/enum\s+ChipModel\s*:\s*uint8_t\s*\{([\s\S]+?)\}/)[1]
+    .matchAll(/CHIP_(\w+)\s*=\s*(0x[0-9a-f]+|\d+)/gi)].map(([, n, v]) => [Number(v), n]);
   const hex = (v) => (v > 9 ? "0x" + v.toString(16).toUpperCase() : String(v));
   return [
     "// GENERATED from src/esplink/commands.h by scripts/gen-commands.mjs — do not edit.",
     ...[...ints].map(([n, v]) => `export const ${n} = ${hex(v)};`),
     `export const STATUS = { ${status.map(([v, n]) => `${v}: "${n}"`).join(", ")} };`,
+    `export const CHIP = { ${chips.map(([v, n]) => `${v}: "${n}"`).join(", ")} };`,
     "",
   ].join("\n");
 }

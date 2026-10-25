@@ -1,4 +1,4 @@
-# esplink wire protocol (v1)
+# esplink wire protocol (v2)
 
 Binary protocol over USB serial between a host (PC / Raspberry Pi) and the
 bridge firmware on an ESP32. Optimized for speed and simplicity: no JSON, no

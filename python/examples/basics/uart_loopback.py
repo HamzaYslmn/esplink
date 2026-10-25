@@ -1,14 +1,14 @@
-"""Second UART for GPS modules, modems and other serial devices.
+"""Second UART for GPS modules, modems and other serial devices — pyserial-style.
 
-Loopback test: jumper GPIO 17 (TX) to GPIO 16 (RX). For a real device wire
-its TX->16 / RX->17 and match the baud (a GPS is usually 9600).
+Loopback test: jumper the board's UART TX to RX (esp.pins.tx -> esp.pins.rx;
+GPIO 17 -> 16 on a classic ESP32). For a real device cross TX/RX and match the
+baud (a GPS is usually 9600).
 
     uv run basics/uart_loopback.py
 """
 from esplink import Bridge
 
-with Bridge() as esp:
-    port = esp.uart.init(port=1, tx=17, rx=16, baud=115_200)
+with Bridge() as esp, esp.uart.init(baud=115_200) as port:
+    port.timeout = 1
     port.write(b"hello, loopback!\n")
-    print("got:", port.readline(timeout=1.0) or "nothing - is 17 jumpered to 16?")
-    port.close()
+    print("got:", port.readline() or "nothing - is TX jumpered to RX?")

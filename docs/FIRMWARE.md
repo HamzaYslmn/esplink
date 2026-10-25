@@ -180,10 +180,16 @@ partition above; on Huge APP there's no OTA slot, so `esp.ota` replies
 
 ## Flash without the Arduino IDE (`esplink flash`)
 
-The host package ships a **prebuilt Huge APP image** of the example sketch, so
-the first flash can happen straight from the host — no Arduino IDE, no
-toolchain. It lists the serial ports, lets you pick one, and writes the image
-over USB with esptool:
+The host package ships a **prebuilt image per board**, so the first flash can
+happen straight from the host — no Arduino IDE, no toolchain. It lists the
+serial ports, lets you pick one, tells the board from its USB ID and writes the
+matching image:
+
+| board | image | written by |
+|---|---|---|
+| classic ESP32 | Huge APP merged `.bin` | esptool |
+| ESP32-S3 (native USB) | Huge APP merged `.bin`, 4 MB layout (fits every S3 module) | esptool |
+| Pro Micro nRF52840 | `.uf2` for the stock bootloader (S140 6.1.1) | a 1200-baud touch, then a copy onto the UF2 drive |
 
 ```sh
 uvx --from "esplink[flash]" flash   # zero-install via uv
@@ -191,14 +197,16 @@ uvx --from "esplink[flash]" flash   # zero-install via uv
 flash                # list ports and choose (also: esplink flash)
 flash -p COM5        # flash a specific port
 flash --erase        # wipe the whole flash first (clears NVS / name)
-flash --firmware my.bin   # flash your own image instead
+flash --firmware my.bin   # flash your own image instead (.bin or .uf2)
+flash --chip esp32s3      # skip the USB-ID guess (esp32, esp32s3, promicro)
 ```
 
-The bundled image is a **classic-ESP32 Huge APP** build (no OTA — for cable-free
-updates afterwards, build/flash the Minimal SPIFFS scheme yourself and use
-`esplink.ota`). It is regenerated from `examples/Bridge` by
-`tools/build_firmware.py` (run in CI before each release), so it always matches
-the published version.
+The ESP images are **Huge APP** builds (no OTA — for cable-free updates
+afterwards, build/flash the Minimal SPIFFS scheme yourself and use
+`esplink.ota`). A Pro Micro on a 0.9.x bootloader needs the `s140v7` build
+instead. All three are regenerated from `examples/Bridge` and
+`examples/Bridge_nRF52` by `tools/build_firmware.py` (run in CI before each
+release), so they always match the published version.
 
 ## Optional peripherals (compile-time)
 

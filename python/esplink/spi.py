@@ -19,10 +19,15 @@ class Spi:
     def __init__(self, bridge):
         self._b = bridge
 
-    def init(self, *, sck: int = 18, miso: int = 19, mosi: int = 23,
+    def init(self, *, sck: int | None = None, miso: int | None = None, mosi: int | None = None,
              freq: int = 1_000_000, mode: int = 0, msb_first: bool = True,
              host: int = 0) -> None:
-        """Configure the SPI host's pins, clock and mode; call once first."""
+        """Configure the SPI host's pins, clock and mode; call once first.
+        Pins default to the board's (``esp.pins.sck`` / ``.miso`` / ``.mosi``)."""
+        pins = self._b.pins
+        sck = pins.sck if sck is None else sck
+        miso = pins.miso if miso is None else miso
+        mosi = pins.mosi if mosi is None else mosi
         self._b.request(C.SPI_INIT, struct.pack(">BbbbIBB", host, sck, miso, mosi,
                                                 freq, mode, 1 if msb_first else 0))
 

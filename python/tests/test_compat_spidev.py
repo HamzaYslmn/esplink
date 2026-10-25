@@ -20,7 +20,7 @@ def test_open_xfer_and_settings(bridge, fw, inits):
     spi.max_speed_hz = 1_350_000
     spi.mode = 0b11
     assert spi.xfer2([1, 0x80, 0]) == [1, 0x80, 0]
-    assert inits[-1] == {"sck": 18, "miso": 19, "mosi": 23, "mode": 3,
+    assert inits[-1] == {"sck": None, "miso": None, "mosi": None, "mode": 3,
                          "freq": 1_350_000, "msb_first": True, "host": 0}
     n = len(inits)
     spi.xfer([0xAA])

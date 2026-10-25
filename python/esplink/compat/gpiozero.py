@@ -233,14 +233,18 @@ class EspLinkFactory(Factory):
             self.pins[info] = pin
         return pin
 
-    def spi(self, *, port=0, device=None, clock_pin=18, mosi_pin=23, miso_pin=19,
+    def spi(self, *, port=0, device=None, clock_pin=None, mosi_pin=None, miso_pin=None,
             select_pin=None, shared=False):
-        """gpiozero's SPI arguments, with the ESP32's pins as defaults:
-        ``device`` 0/1 means CS GPIO5/GPIO15, or name any ``select_pin``."""
+        """gpiozero's SPI arguments, defaulting to the board's pins (esp.pins):
+        ``device`` 0/1 means CS esp.pins.cs / GPIO15, or name any ``select_pin``."""
+        pins = self._esp.pins
+        clock_pin = pins.sck if clock_pin is None else clock_pin
+        mosi_pin = pins.mosi if mosi_pin is None else mosi_pin
+        miso_pin = pins.miso if miso_pin is None else miso_pin
         if device is not None and select_pin is not None:
             raise SPIBadArgs("give device or select_pin, not both")
         if select_pin is None:
-            select_pin = (5, 15)[device or 0]
+            select_pin = (pins.cs, 15)[device or 0]
         pins = [None if p is None else self._info(p).number
                 for p in (clock_pin, mosi_pin, miso_pin, select_pin)]
         return EspLinkSPI(self, port, *pins)
