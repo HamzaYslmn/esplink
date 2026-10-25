@@ -12,7 +12,7 @@ static uint32_t last_edge_ms[SOC_GPIO_PIN_COUNT];
 static uint8_t pin_mode[SOC_GPIO_PIN_COUNT];       // last mode set via SET_MODE (0xFF = unknown)
 
 static bool is_valid_pin(uint8_t pin) {
-  return pin < SOC_GPIO_PIN_COUNT && GPIO_IS_VALID_GPIO((gpio_num_t)pin);
+  return pin < SOC_GPIO_PIN_COUNT && GPIO_IS_VALID_GPIO((gpio_num_t)pin) && !pin_is_link(pin);
 }
 
 static bool is_strap_pin(uint8_t pin) {
@@ -20,8 +20,8 @@ static bool is_strap_pin(uint8_t pin) {
   return pin == 0 || pin == 2 || pin == 12 || pin == 15;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   return pin == 0 || pin == 3 || pin == 45 || pin == 46;
-#else
-  return pin == 0;
+#else  // C3
+  return pin == 2 || pin == 8 || pin == 9;
 #endif
 }
 

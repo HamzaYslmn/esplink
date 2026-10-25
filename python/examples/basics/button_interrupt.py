@@ -1,14 +1,14 @@
-"""Edge interrupts: push-button on GPIO 4 (wired to GND, internal pull-up)."""
+"""Edge interrupt: a push-button from GPIO 4 to GND calls back into Python.
+
+    uv run basics/button_interrupt.py
+"""
 import time
 
 from esplink import Bridge
 
-BUTTON = 4
-
 with Bridge() as esp:
-    esp.gpio.mode(BUTTON, "input_pullup")
-    esp.gpio.watch(BUTTON, edge="falling", debounce_ms=30,
-                   callback=lambda ev: print(f"pressed! (t={ev.millis} ms)"))
-    print("waiting for button presses for 30 s ...")
+    esp.gpio.mode(4, "input_pullup")
+    esp.gpio.watch(4, edge="falling", debounce_ms=30,
+                   callback=lambda ev: print(f"pressed at {ev.millis} ms"))
+    print("press the button (30 s) ...")
     time.sleep(30)
-    esp.gpio.unwatch(BUTTON)

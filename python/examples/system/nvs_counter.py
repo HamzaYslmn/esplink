@@ -1,8 +1,10 @@
-"""Persistent boot/run counter in the ESP32's NVS flash."""
+"""A run counter kept in the ESP32's NVS flash: it survives resets and power-offs.
+
+    uv run system/nvs_counter.py
+"""
 from esplink import Bridge
 
 with Bridge() as esp:
-    runs = (esp.nvs.get_int("runs") or 0) + 1
+    runs = esp.nvs.get_int("runs", 0) + 1
     esp.nvs.set("runs", runs)
-    print(f"this script has touched this board {runs} time(s)")
-    print(f"stored keys: {esp.nvs.keys()}")
+    print(f"run #{runs} on this board; keys: {esp.nvs.keys()}")

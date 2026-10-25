@@ -14,6 +14,12 @@ static HardwarePWM* const PWM_INST[] = {
   &HwPWM3,
 #endif
 };
+static NRF_PWM_Type* const PWM_REG[] = {  // the same instances' registers, in order
+  NRF_PWM0, NRF_PWM1, NRF_PWM2,
+#ifdef NRF_PWM3
+  NRF_PWM3,
+#endif
+};
 static const uint8_t PWM_N = sizeof(PWM_INST) / sizeof(PWM_INST[0]);
 
 static HardwarePWM* inst_for_pin(uint8_t pin) {
@@ -54,8 +60,23 @@ static HardwarePWM* setup_pin(uint8_t pin, uint32_t freq, uint16_t top) {
   return h;
 }
 
+// GPIO STATUS/DUMP's view of a pin, as ledcReadFreq/ledcRead give the ESP:
+// the frequency (0 = no PWM on this pin), and the raw duty through *duty.
+uint32_t nrf_pwm_read(uint8_t pin, uint32_t* duty) {
+  for (uint8_t i = 0; i < PWM_N; i++)
+    if (PWM_INST[i]->pin2channel(pin) >= 0) {
+      *duty = PWM_INST[i]->readPin(pin);
+      return (16000000UL >> PWM_REG[i]->PRESCALER) / PWM_REG[i]->COUNTERTOP;
+    }
+  *duty = 0;
+  return 0;
+}
+
 void pwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   uint16_t cmd = CMD(MOD_PWM, op);
+  // Every op leads with a pin, and the core maps it through g_ADigitalPinMap
+  // unchecked: past the end, that would drive whatever pad the junk names.
+  if (len && p[0] >= PINS_COUNT) { proto_reply_err(seq, cmd, ST_BAD_PIN); return; }
   switch (op) {
     case 0x01: {  // ATTACH: pin, freq u32, res_bits
       NEED(6);

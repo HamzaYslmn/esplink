@@ -1,2 +1,20 @@
 # arduino-cli project file: `arduino-cli compile examples/Bridge_nRF52` needs no --fqbn.
 default_fqbn: adafruit:nrf52:feather52840
+
+profiles:
+  # Pro Micro nRF52840 (nice!nano footprint, VID 239A). Neither core ships this
+  # board: its definition is SharkGarry's esp32-core/boards/ProMicro_nRF52840
+  # (run its install.sh once, and after every core update). Pin numbers are the
+  # silkscreen's: D2 is pin 2, SDA 4 / SCL 5, ADC on 19/20/21.
+  #   arduino-cli compile --profile promicro --build-path .build/promicro examples/Bridge_nRF52
+  #   arduino-cli upload  --profile promicro --build-path .build/promicro -p COM12 examples/Bridge_nRF52
+  # s140v6 matches the stock bootloader (app at 0x26000); a 0.9.x bootloader
+  # needs s140v7, and the wrong one uploads fine and never boots.
+  promicro:
+    notes: Pro Micro nRF52840 / nice!nano clone, stock UF2 bootloader (S140 6.1.1).
+    fqbn: Seeeduino:nrf52:promicronRF52840:softdevice=s140v6
+    platforms:
+      - platform: Seeeduino:nrf52 (1.1.13)
+        platform_index_url: https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json
+    libraries:
+      - dir: ../..   # this repo's own library — profiles see only what they list

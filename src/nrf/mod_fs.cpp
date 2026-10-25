@@ -2,7 +2,7 @@
 // src/esp/mod_fs.cpp, but only filesystem id 0 (LittleFS) — no SD. Runs on
 // slow_task. The Adafruit LittleFS wrapper allows only ONE open file at a time,
 // so a second OPEN before CLOSE replies ST_BUSY. No mtime is tracked (STAT
-// reports 0). MOUNT/DF report 0/0 — the wrapper exposes no usage query.
+// reports 0).
 #if defined(ARDUINO_ARCH_NRF52)
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
@@ -13,6 +13,8 @@ using namespace Adafruit_LittleFS_Namespace;
 bool nrf_internalfs_begin();  // plat_nrf.cpp
 
 #define FS_PATH_MAX 128
+
+static int count_block(void* n, lfs_block_t) { ++*(uint32_t*)n; return 0; }
 
 static File dfile(InternalFS);  // the single open data file
 static bool dopen = false;
@@ -36,7 +38,15 @@ void fs_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       NEED(1);
       if (p[0] != 0) { proto_reply_err(seq, cmd, ST_UNSUPPORTED); return; }
       if (!nrf_internalfs_begin()) { proto_reply_err(seq, cmd, ST_IO); return; }
-      uint8_t buf[8] = {0};  // usage not queryable on this wrapper -> 0/0
+      // The wrapper has no usage query: count the blocks littlefs walks.
+      lfs_t* fs = InternalFS._getFS();
+      uint32_t used = 0, bs = fs->cfg->block_size;
+      InternalFS._lockFS();
+      lfs_traverse(fs, count_block, &used);
+      InternalFS._unlockFS();
+      uint8_t buf[8];
+      write_be32(buf, fs->cfg->block_count * bs / 1024);
+      write_be32(buf + 4, used * bs / 1024);
       proto_reply(seq, cmd, buf, 8);
       break;
     }

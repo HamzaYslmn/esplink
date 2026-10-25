@@ -88,3 +88,25 @@ test("Bridge: handshake, requests, events, errors, flow control", async () => {
 test("Bridge: a wrong wireless password is refused", async () => {
   await assert.rejects(Bridge.open(fakeBoard(), { password: "nope" }), (e) => /DENIED/.test(e.message));
 });
+
+test("Bridge: an oversized payload is refused without leaking window bytes", async () => {
+  const esp = await Bridge.open(fakeBoard({ password: null, maxInflight: 4300 }));
+  const big = new Uint8Array(3000);
+  await assert.rejects(esp.request(C.SYS_PING, big), RangeError);
+  await assert.rejects(esp.request(C.SYS_PING, big), RangeError);   // used to hang forever
+  assert.equal((await esp.request(C.SYS_PING, new Uint8Array(1500))).length, 1500);
+  await esp.close();
+});
+
+test("Bridge: a timed-out request settles once", async () => {
+  const board = fakeBoard({ password: null });
+  const esp = await Bridge.open(board);
+  const write = board.write;
+  board.write = async (d) => { await new Promise((r) => setTimeout(r, 40)); throw new Error("link gone"); };
+  await assert.rejects(esp.request(C.SYS_PING, undefined, 10), TimeoutError);  // then the write rejects too
+  await new Promise((r) => setTimeout(r, 60));
+  board.write = write;
+  const pings = await Promise.all(Array.from({ length: 5 }, () => esp.ping()));
+  assert.equal(pings.length, 5);
+  await esp.close();
+});

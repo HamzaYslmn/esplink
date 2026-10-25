@@ -163,24 +163,23 @@ void watch_poll() {
 void watch_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   uint16_t cmd = CMD(MOD_WATCH, op);
   switch (op) {
-    case 0x01:    // ADD:  id|source|arg|aux|cmp|flags|period u16|a i32|b i32
-    case 0x05: {  // ADD2: ADD + enter/exit actions, each type u8|pin u8|value i32
-      bool with_actions = (op == 0x05);
-      NEED(with_actions ? 28 : 16);
+    case 0x05: {  // ADD2: id|source|arg|aux|cmp|flags|period u16|a i32|b i32|enter|exit,
+                  // each action type u8|pin u8|value i32 (type 0 = none)
+      NEED(28);
       uint8_t id = p[0], source = p[1], arg = p[2], aux = p[3], cmp = p[4];
       if (source > SRC_HEAP || cmp > CMP_CHANGED) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
 #if !BRIDGE_HAS_TOUCH
       if (source == SRC_TOUCH) { proto_reply_err(seq, cmd, ST_UNSUPPORTED); return; }
 #endif
+      if (source == SRC_ADC_RAW || source == SRC_ADC_MV) NEED_FREE_PINS(p + 2, 1);
       WatchAction acts[2] = {};  // [1] = enter (first on the wire), [0] = exit
-      if (with_actions) {
-        for (int i = 0; i < 2; i++) {
-          const uint8_t* q = p + 16 + i * 6;
-          if (q[0] > ACT_PWM) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
-          WatchAction& a = acts[i == 0 ? 1 : 0];
-          a.type = q[0]; a.pin = q[1]; a.value = (int32_t)read_be32(q + 2);
-          if (a.type == ACT_GPIO) pinMode(a.pin, OUTPUT);
-        }
+      for (int i = 0; i < 2; i++) {
+        const uint8_t* q = p + 16 + i * 6;
+        if (q[0] > ACT_PWM) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
+        if (q[0] != ACT_NONE) NEED_FREE_PINS(q + 1, 1);
+        WatchAction& a = acts[i == 0 ? 1 : 0];
+        a.type = q[0]; a.pin = q[1]; a.value = (int32_t)read_be32(q + 2);
+        if (a.type == ACT_GPIO) pinMode(a.pin, OUTPUT);
       }
       Watch* w = find_watch(id);
       if (!w) for (auto& s : watches) if (!s.active) { w = &s; break; }

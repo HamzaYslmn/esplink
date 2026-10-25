@@ -5,6 +5,7 @@ import contextlib
 import dataclasses
 import functools
 import logging
+import queue
 import struct
 import threading
 import time
@@ -126,11 +127,18 @@ def _targets(name) -> tuple[str, ...] | None:
 
 
 class _Pending:
-    __slots__ = ("event", "frame")
+    __slots__ = ("done", "frame", "direct")
 
-    def __init__(self) -> None:
-        self.event = threading.Event()
+    def __init__(self, direct: bool) -> None:
+        # A held lock as a one-shot signal: the reader's release() is the "set".
+        # A threading.Event is a Condition that builds a waiter lock per wait —
+        # this is the bare lock underneath it, and the hot path is cheaper for it.
+        self.done = threading.Lock()
+        self.done.acquire()
         self.frame: Frame | None = None
+        # Made by an event callback: its reply must not queue behind that very
+        # callback (see _handle_frame), or it waits on itself.
+        self.direct = direct
 
 
 # Which Bridge() keywords decide *which boards exist*, as opposed to how each
@@ -274,71 +282,21 @@ def _ble_candidates(want: tuple[str, ...] | None):
 
 
 class Bridge:
-    """Connection to a esplink ESP32.
+    """One ESP32 running the esplink firmware.
 
-    >>> from esplink import Bridge
-    >>> with Bridge() as esp:         # USB if it's plugged in, else Bluetooth
-    ...     esp.gpio.mode(2, "output")
-    ...     esp.gpio.write(2, 1)
+    >>> with Bridge() as esp:                   # best link: USB, then BLE, then Wi-Fi
+    ...     esp.gpio.mode(2, "output"); esp.gpio.write(2, 1)
 
-    **``Bridge()`` is one board, ``Bridge.all()`` is every board.** That is the
-    whole rule: the constructor always hands back a single Bridge, so nothing
-    about how you call it changes the type of what you get.
+    >>> Bridge("relays")                        # by stored name (set_name) or MAC
+    >>> Bridge(port="COM7") / Bridge(host="192.168.1.50")
+    >>> Bridge(ble=True)                        # pins the link: True = BLE only,
+    >>>                                         # False = USB only, wifi=True = Wi-Fi only
+    >>> Bridge.all(["relays", "sensors"])       # several boards -> BridgeSet
 
-    >>> esp = Bridge()                          # whichever board answers first
-    >>> esp = Bridge("relays")                  # that board, by stored name
-    >>> esp = Bridge("c0:49:ef:d0:3f:e0")       # ...or by MAC
-    >>> esp = Bridge(port="COM7")               # a specific serial port
-    >>> esp = Bridge(host="192.168.1.50")       # a specific Wi-Fi address
-    >>>
-    >>> boards = Bridge.all()                       # every board  -> BridgeSet
-    >>> boards = Bridge.all(["relays", "sensors"])  # exactly these
-    >>> boards = Bridge.all(wifi=True)              # every board on Wi-Fi
-
-    Bare ``Bridge()`` stops at the first board that answers and logs which one
-    ("relays online from ble relays"), so a one-board desk needs no argument and
-    a crowded one still connects once instead of storming every radio in range.
-    Name a board when it matters which.
-
-    The first argument is the board's **identity**: the name you gave it with
-    :meth:`set_name`, or its MAC if you never did. ``esplink scan`` lists what's attached;
-    ``esp.info.ident`` is the string for a board you already hold.
-
-    It is *only* an identity — never a COM port, never an IP address, which have
-    their own keywords. Nothing is inferred from the shape of the string.
-
-    A named board answers to its name on every link. Its MAC works too, though
-    over Bluetooth that costs a moment: only one identity fits an advertisement,
-    so a named board broadcasts its name, and finding it by MAC means asking the
-    bridges in range over the link instead of reading the answer off the scan.
-
-    Asked for no particular link, it takes the best one available, in this
-    order: **USB, then Bluetooth, then Wi-Fi**. A cable is fastest, costs no
-    radio and can't be out of range; Bluetooth needs no network; the LAN is the
-    last resort and is the only one that costs a broadcast to find, so it is
-    tried only when the first two turn up nothing.
-
-    Ask for a link, though, and that is the link you get — each transport
-    keyword *pins* rather than prefers: ``ble=False`` is USB only, ``ble=True``
-    Bluetooth only, and ``wifi=True`` Wi-Fi only, which also accepts boards that
-    dial home (see :class:`BridgeSet` and ``esp.wifi.link_setup``). There is no
-    quiet fallback to a link you didn't ask for — that is how you end up
-    measuring USB and calling it Bluetooth. Wireless links authenticate:
-    the firmware default password is "esplink", changed with
-    ``EspLink.ble.begin("...")`` / ``wifi.begin(..., password)`` in the sketch
-    and passed here as ``password=``.
-
-    Thread-safe: share **one** Bridge across threads rather than opening several
-    (a serial/BLE link can't be opened twice). Requests from different threads
-    are correlated by sequence number and pipeline on the wire, so a slow call
-    on one thread doesn't stall fast calls on another. For a process-wide shared
-    link with auto-reconnect, use :func:`esplink.connect` / ``BridgeManager``;
-    for ``await``, wrap it with :class:`esplink.AsyncBridge`.
-
-    Peripherals hang off the bridge as sub-APIs — ``esp.gpio``, ``esp.adc``,
-    ``esp.i2c``, ``esp.watch`` and so on (see the table in ``_SUBAPIS``). They
-    are created lazily on first access; the annotations just below let editors
-    resolve them to their classes and show each method's signature and docstring.
+    The first argument is only ever an identity, never a port or address.
+    Wireless links authenticate with ``password=`` (firmware default "esplink").
+    Thread-safe: share one Bridge; concurrent requests pipeline on the wire.
+    Peripherals are lazy sub-APIs (``esp.gpio``, ``esp.i2c``, ... see _SUBAPIS).
     """
 
     # Lazily-created sub-APIs (see __getattr__ / _SUBAPIS). Declared at type-check
@@ -399,7 +357,6 @@ class Bridge:
         reset_on_open: bool = True,
         timeout: float = 2.0,
         retries: int = 1,
-        reset_on_exit: bool = False,
         transport=None,
     ):
         # One board, always; Bridge.all() is the plural path.
@@ -411,9 +368,7 @@ class Bridge:
         # frame heals unnoticed. Only idempotent commands are retried (see
         # constants.NON_IDEMPOTENT).
         self.retries = retries
-        self.reset_on_exit = False  # set for real only once connected (see below)
         self.info: Info | None = None
-        self._password = password
 
         target = name
         if isinstance(target, list):
@@ -456,7 +411,6 @@ class Bridge:
                                        for t in want):
                     if upgrade_baud and getattr(self._t, "has_baud", True):
                         self._upgrade_baud(baud, target_baud)
-                    self.reset_on_exit = reset_on_exit
                     if transport is None:
                         # Which board a bare Bridge() landed on is the one thing
                         # you can't tell from the call. Bridge.all() logs its own
@@ -486,7 +440,6 @@ class Bridge:
 
     def _auth(self, password: str | None) -> None:
         """Authenticate a wireless link (SYS_AUTH) before the handshake."""
-        self._password = password  # remembered so _reconnect can re-authenticate
         pw = (C.DEFAULT_PASSWORD if password is None else password).encode()
         try:
             self.request(C.SYS_AUTH, pw, timeout=5.0)
@@ -523,6 +476,12 @@ class Bridge:
         self._flow = threading.Condition()
         self._handlers: dict[int | None, list] = {}
         self._handlers_lock = threading.Lock()
+        # Event frames (and replies that must not overtake them) for the
+        # dispatch thread. _ev_put is written only by the reader, _ev_done only
+        # by the dispatcher, so equal means "nothing queued or running".
+        self._events: queue.SimpleQueue = queue.SimpleQueue()
+        self._ev_put = self._ev_done = 0
+        self._dispatcher = None
         self._ready = threading.Event()
         self._closing = False
         # Set once a request times out AND a confirming ping also fails: the
@@ -634,24 +593,16 @@ class Bridge:
         return False
 
     def _start_reader(self) -> None:
+        self._dispatcher = threading.Thread(target=self._dispatch_loop, daemon=True,
+                                            name="esplink-events")
+        self._dispatcher.start()
         self._reader = threading.Thread(target=self._read_loop, daemon=True,
                                         name="esplink-reader")
         self._reader.start()
 
     def _reconnect(self, baud: int) -> None:
-        """Reopen the link and redo the handshake (recovers a dead link)."""
-        host = getattr(self._t, "host", None)
-        if host is not None:  # TCP: reconnect to the same address
-            tcp_port = self._t.port
-            log.warning(f"link lost; reconnecting to {host}:{tcp_port}")
-            self._t.close()
-            self._reader.join(timeout=1.0)
-            self._reset_state()
-            self._t = TcpTransport(host, tcp_port)
-            self._start_reader()
-            self._auth(self._password)
-            self._handshake(reset_on_open=False)
-            return
+        """Reopen the serial port at `baud` and redo the handshake: the
+        baud-upgrade fallback for a board that switched rate but went deaf."""
         port = getattr(getattr(self._t, "ser", None), "port", None)
         chip = getattr(self._t, "usb_chip", None)
         if port is None:
@@ -673,20 +624,16 @@ class Bridge:
                 f"fw{'.'.join(map(str, info.fw_version))}>")
 
     def close(self) -> None:
-        """Close the link and stop the reader thread (idempotent). If the bridge
-        was created with ``reset_on_exit=True``, the board is reset first. Prefer
-        a ``with Bridge() as esp:`` block, which calls this automatically."""
+        """Close the link and stop the reader thread (idempotent); ``with``
+        blocks call this for you."""
         if self._closing:
             return
         self._closing = True
         with self._flow:  # unblock any writer waiting on the in-flight window
             self._flow.notify_all()
-        if self.reset_on_exit and self._ready.is_set():
-            with contextlib.suppress(Exception):
-                self.request(C.SYS_RESET, timeout=1.0)
         base = getattr(self, "_baud_base", None)
         if (base is not None and getattr(self, "_baud_now", base) != base
-                and self._ready.is_set() and not self.reset_on_exit):
+                and self._ready.is_set()):
             # Hand the fast link back. SYS_SET_BAUD isn't persisted, so the board
             # keeps the negotiated rate until it reboots — and the next session
             # that attaches *without* resetting it (Bridge.all(), or
@@ -714,6 +661,7 @@ class Bridge:
     # ---- reader thread ----------------------------------------------------------
 
     def _read_loop(self) -> None:
+        events = self._events  # this session's: _reconnect() swaps in a new one
         while not self._closing:
             try:
                 data = self._t.read()
@@ -733,19 +681,42 @@ class Bridge:
         # Wake any pending requests so they can surface a "connection closed" error.
         with self._pending_lock:
             for p in self._pending.values():
-                p.event.set()
+                if p.frame is None:  # not yet released by _handle_frame
+                    p.done.release()
+        events.put(None)  # stop the dispatcher once it has drained the queue
         with self._flow:  # unblock any writers waiting on the in-flight window
             self._flow.notify_all()
 
     def _handle_frame(self, frame: Frame) -> None:
         if frame.is_event:
-            self._dispatch_event(frame)
+            self._ev_put += 1
+            self._events.put(frame)
             return
         with self._pending_lock:
             p = self._pending.get(frame.seq)
-        if p is not None:
+        if p is not None and p.frame is None:  # first reply wins; release exactly once
             p.frame = frame
-            p.event.set()
+            if p.direct or self._ev_done == self._ev_put:
+                p.done.release()
+            else:
+                # Events that arrived before this reply are still being
+                # dispatched: release it behind them, so the requester sees
+                # their effects when it returns (fs.list() collects its
+                # entries from FS_LIST_EVTs that precede the reply).
+                self._ev_put += 1
+                self._events.put(p)
+
+    def _dispatch_loop(self) -> None:
+        # Event callbacks run here, never on the reader thread: a callback that
+        # makes a request (led.toggle() in a button callback) needs the reader
+        # free to read its reply. One thread keeps delivery in wire order.
+        events = self._events
+        while (item := events.get()) is not None:
+            if isinstance(item, _Pending):
+                item.done.release()
+            else:
+                self._dispatch_event(item)
+            self._ev_done += 1
 
     def _on_sys_log(self, payload: bytes) -> None:
         # SYS_LOG payload: level u8 | message bytes (includes redirected
@@ -761,7 +732,7 @@ class Bridge:
         for cb in specific:
             try:
                 cb(frame.payload)
-            except Exception:  # never let a user callback kill the reader thread
+            except Exception:  # never let a user callback kill the dispatch thread
                 log.exception(f"event callback {cb!r} raised")
         for cb in wildcard:
             try:
@@ -789,7 +760,8 @@ class Bridge:
             for _ in range(255):
                 self._seq = self._seq % 255 + 1  # wraps through 1..255; seq=0 means fire-and-forget
                 if self._seq not in self._pending:
-                    self._pending[self._seq] = _Pending()
+                    self._pending[self._seq] = _Pending(
+                        threading.current_thread() is self._dispatcher)
                     return self._seq
         raise BridgeTimeoutError("255 requests in flight — firmware not answering")
 
@@ -859,7 +831,7 @@ class Bridge:
         try:
             with self._write_lock:
                 self._t.write(data)
-            if not p.event.wait(timeout if timeout is not None else self.timeout):
+            if not p.done.acquire(timeout=timeout if timeout is not None else self.timeout):
                 raise BridgeTimeoutError(f"no response for {C.cmd_name(cmd)}")
             if p.frame is None:
                 raise BridgeTimeoutError("connection closed while waiting for response")
@@ -1233,7 +1205,7 @@ class BridgeSet(list):
 
 
 def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
-                  bind: str = "0.0.0.0", on_connect=None, backlog: int = 512,
+                  on_connect=None, backlog: int = 512,
                   **kwargs) -> BridgeSet:
     """Every board that matches, as a :class:`BridgeSet`. Reached via
     :meth:`Bridge.all`.
@@ -1333,8 +1305,8 @@ def _connect_many(*, name=None, wifi=False, tcp_port: int = C.BRIDGE_LINK_PORT,
 
     # Dial-home boards: nothing to enumerate, they come to us.
 
-    out._listener = listener = TcpListener(tcp_port, bind, backlog=backlog)
-    log.info(f"accepting dial-home boards on {bind}:{listener.port}")
+    out._listener = listener = TcpListener(tcp_port, "0.0.0.0", backlog=backlog)
+    log.info(f"accepting dial-home boards on port {listener.port}")
 
     def accept_loop():
         while out._listener is not None:

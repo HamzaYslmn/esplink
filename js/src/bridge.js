@@ -121,6 +121,7 @@ export class Bridge {
   async request(cmd, payload = new Uint8Array(), timeout = this.timeout) {
     // Flow control: cap bytes in flight at the firmware's RX window, or a
     // pipelined burst overflows its link buffer and frames are lost.
+    if (payload.length > C.MAX_PAYLOAD) throw new RangeError(`payload too large: ${payload.length} > ${C.MAX_PAYLOAD}`);
     const size = payload.length + 8;
     while ((this.#inflight && this.#inflight + size > (this.#t.maxInflight ?? Infinity)) || this.#pending.size >= 255)
       await new Promise((r) => this.#waiters.push(r));
@@ -130,7 +131,10 @@ export class Bridge {
     this.#seq = seq;
     const frame = encodeFrame(0, seq, cmd, payload);
     return new Promise((resolve, reject) => {
+      let settled = false;  // a timeout and a failed write can both report; count it once
       const done = (err, value) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         this.#pending.delete(seq);
         this.#inflight -= size;

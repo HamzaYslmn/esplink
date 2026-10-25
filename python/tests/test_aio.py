@@ -56,3 +56,30 @@ def test_wrap_shares_and_does_not_close(bridge):
 def test_not_connected_explains_itself():
     with pytest.raises(RuntimeError, match="not connected"):
         AsyncBridge(ble=False).gpio  # noqa: B018
+
+
+def test_subapi_method_named_like_a_subapi_is_callable(fw):
+    # Gpio.watch shares its name with the esp.watch sub-API; it must still be a method.
+    async def scenario(esp):
+        await esp.gpio.mode(4, "input_pullup")
+        await esp.gpio.watch(4, edge="falling")
+    _async(fw, scenario)
+
+
+def test_unstarted_stream_unsubscribes_on_close(fw):
+    async def scenario(esp):
+        stream = esp.events(C.GPIO_EDGE_EVT)
+        await stream.aclose()
+        assert not esp.bridge._handlers.get(C.GPIO_EDGE_EVT)
+    _async(fw, scenario)
+
+
+def test_timed_out_wait_keeps_the_stream(fw):
+    async def scenario(esp):
+        stream = esp.events(C.GPIO_EDGE_EVT, EdgeEvent.parse)
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(anext(stream), timeout=0.05)
+        fw.emit(C.GPIO_EDGE_EVT, bytes([4, 1]) + struct.pack(">I", 7))
+        assert (await asyncio.wait_for(anext(stream), timeout=2.0)).millis == 7
+        await stream.aclose()
+    _async(fw, scenario)

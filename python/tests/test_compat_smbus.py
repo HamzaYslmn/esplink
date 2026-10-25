@@ -41,3 +41,25 @@ def test_block_ops(bus, fw):
 def test_missing_device_raises(bus):
     with pytest.raises(RemoteError):
         bus.read_byte(0x21)
+
+
+def test_pi_style_construction(bridge, fw):
+    """SMBus(esp, 1): the Pi's bus number is accepted; context manager works."""
+    fw.i2c_devices[0x48] = b"\x2a"
+    with SMBus(bridge, 1) as bus:
+        assert bus.read_byte(0x48) == 0x2A
+
+
+def test_i2c_rdwr(bus, fw):
+    from esplink.compat.smbus import i2c_msg
+
+    w, r = i2c_msg.write(0x48, [0x00]), i2c_msg.read(0x48, 3)
+    bus.i2c_rdwr(w, r)  # write + read of one device = one repeated-start transfer
+    assert list(r) == [0x1A, 0x80, 0x42] and len(r) == 3 and r.buf[0] == 0x1A
+    assert fw.i2c_writes[-1] == (0x48, b"\x00")
+
+    bus.i2c_rdwr(i2c_msg.write(0x48, b"\x01\x02"))
+    assert fw.i2c_writes[-1] == (0x48, b"\x01\x02")
+    single = i2c_msg.read(0x48, 2)
+    bus.i2c_rdwr(single)
+    assert bytes(single) == b"\x1a\x80"

@@ -10,6 +10,13 @@ from . import constants as C
 ATTEN = {0: 0, 2.5: 1, 6: 2, 11: 3}
 
 
+def atten_code(db: float) -> int:
+    """dB -> the firmware's attenuation code; only the four real steps exist."""
+    if db not in ATTEN:
+        raise ValueError(f"atten must be one of {sorted(ATTEN)} dB, not {db!r}")
+    return ATTEN[db]
+
+
 class Adc:
     """Oneshot ADC reads.
 
@@ -23,7 +30,7 @@ class Adc:
 
     def config(self, pin: int, atten: float = 11) -> None:
         """Set the input attenuation for a pin (0/2.5/6/11 dB; default 11 ≈ 3.3 V)."""
-        self._b.request(C.ADC_CONFIG, bytes([pin, ATTEN.get(atten, int(atten))]))
+        self._b.request(C.ADC_CONFIG, bytes([pin, atten_code(atten)]))
 
     def read(self, pin: int) -> int:
         """Raw 12-bit reading (0..4095)."""

@@ -41,7 +41,7 @@ class FakeFirmware:
         self.gpio_levels: dict[int, int] = {}
         self.watching: dict[int, tuple[int, int]] = {}
 
-        self.watches: dict[int, dict] = {}  # id -> watch rule (WATCH_ADD)
+        self.watches: dict[int, dict] = {}  # id -> watch rule (WATCH_ADD2)
         self.watch_full = False             # set True to make WATCH_ADD2 reply NO_MEM
 
         self.wifi_connected = False
@@ -699,16 +699,15 @@ class FakeFirmware:
             self._reply(seq, cmd)
 
         # ---- WATCH (polled event engine) ----
-        elif cmd in (C.WATCH_ADD, C.WATCH_ADD2):
+        elif cmd == C.WATCH_ADD2:
             if self.watch_full:
                 self._reply_err(seq, cmd, C.Status.NO_MEM)
                 return
             wid, src, arg, aux, cmpv, flags, period, a, b = struct.unpack_from(">BBBBBBHii", p)
             rule = dict(source=src, arg=arg, aux=aux, cmp=cmpv,
                         flags=flags, period_ms=period, a=a, b=b)
-            if cmd == C.WATCH_ADD2:
-                rule["enter_action"] = struct.unpack_from(">BBi", p, 16)
-                rule["exit_action"] = struct.unpack_from(">BBi", p, 22)
+            rule["enter_action"] = struct.unpack_from(">BBi", p, 16)
+            rule["exit_action"] = struct.unpack_from(">BBi", p, 22)
             self.watches[wid] = rule
             self._reply(seq, cmd)
         elif cmd == C.WATCH_REMOVE:

@@ -1,6 +1,7 @@
 // esplink — module entry points wired up by protocol.cpp.
 #pragma once
 #include <Arduino.h>
+#include "config.h"  // BRIDGE_NATIVE_USB (pin_is_link)
 
 // All handlers share the same signature: handle(op, seq, payload, len).
 // Fast handlers (GPIO, I2C, SPI, etc.) run inline on rx_task.
@@ -63,12 +64,45 @@ static inline bool pin_is_adc2(uint8_t pin) {
     case 25: case 26: case 27: return true;
     default: return false;
   }
-#elif defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
   return pin >= 11 && pin <= 20;
 #else
-  return false;  // C3/C6: ADC2 unusable/absent; analogRead maps to ADC1
+  return false;  // C3: ADC2 unusable; analogRead maps to ADC1
 #endif
 }
+
+// True if `pin` is carrying the live host link: Serial's UART0 TX/RX, or the
+// native-USB D-/D+ pads, as the core itself reports them (no pin tables here).
+// Claiming one (Wire.begin(1, ..) on a classic ESP32) makes the core's
+// peripheral manager detach it from Serial: the board goes silent mid-request.
+// Only once a host has spoken over USB; a BLE/TCP-only board keeps those pins
+// free for the host to claim.
+#if defined(ARDUINO_ARCH_ESP32)
+#include <esp32-hal-periman.h>
+#include <esp32-hal-uart.h>
+#endif
+bool proto_usb_link_active();  // protocol.cpp: a valid USB frame since boot
+static inline bool pin_is_link(int8_t pin) {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (pin < 0 || !proto_usb_link_active()) return false;
+#if BRIDGE_NATIVE_USB
+  peripheral_bus_type_t t = perimanGetPinBusType(pin);
+  return t == ESP32_BUS_TYPE_USB_DM || t == ESP32_BUS_TYPE_USB_DP;
+#else
+  return pin == uart_get_TxPin(0) || pin == uart_get_RxPin(0);
+#endif
+#else
+  (void)pin;
+  return false;  // nRF52: USB D-/D+ are dedicated pads, not GPIOs
+#endif
+}
+
+// Handler guard (like NEED): reply ST_BAD_PIN and return if any of the n pin
+// bytes at q is a link pin. -1 / 0xFF ("no pin") never matches.
+#define NEED_FREE_PINS(q, n) do { \
+    for (uint8_t i_ = 0; i_ < (n); i_++) \
+      if (pin_is_link((int8_t)(q)[i_])) { proto_reply_err(seq, cmd, ST_BAD_PIN); return; } \
+  } while (0)
 // Fills out[] with the SYS_INFO payload and returns the byte count written.
 // Used for both the SYS_INFO response and the SYS_READY boot-banner event.
 uint16_t sys_build_info(uint8_t* out);

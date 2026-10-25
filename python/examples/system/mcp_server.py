@@ -1,47 +1,30 @@
-"""Run the ESP32 bridge as an MCP server so an AI agent can drive it.
+"""Run the board as an MCP server so an AI agent can drive it, plus one custom tool.
 
-Install the extra first:  pip install "esplink[mcp]"
+Without a custom tool you don't need this file: the `esplink-mcp` command is
+the same server. For Claude Code:  claude mcp add esplink -- esplink-mcp
+Reference: docs/MCP.md.
 
-Then run this file (or just the installed `esplink-mcp` console script):
-
-    python examples/system/mcp_server.py            # stdio, auto-detect port
-    python examples/system/mcp_server.py -p COM7    # a specific port
-
-Point any MCP client at it. For Claude Code:
-
-    claude mcp add esplink -- esplink-mcp -p COM7
-
-This example also shows how to register your own extra tool on top of the 100+
-built-in peripheral tools before serving. See docs/MCP.md for the full reference.
+    uv run system/mcp_server.py
 """
+import time
+
 from esplink.mcp import BridgeManager, build_server
 
-# Construct the manager explicitly so the custom tool below can reach the board.
-# Pass "relays" (a name or MAC) / port="COM7" / ble=True here to pin one board;
-# with no arguments it auto-detects the USB serial port.
 mgr = BridgeManager()
 server = build_server(mgr)
 
 
 @server.tool
-def blink(pin: int, times: int = 3, period_s: float = 0.2) -> str:
-    """Blink an LED on `pin` a few times (a convenience on top of gpio_*)."""
-    import time
-
+def blink(pin: int, times: int = 3) -> str:
+    """Blink an LED on `pin` a few times."""
     esp = mgr.bridge()
     esp.gpio.mode(pin, "output")
     for _ in range(times):
         esp.gpio.write(pin, 1)
-        time.sleep(period_s)
+        time.sleep(0.2)
         esp.gpio.write(pin, 0)
-        time.sleep(period_s)
+        time.sleep(0.2)
     return f"blinked GPIO{pin} {times} times"
 
 
-if __name__ == "__main__":
-    # Default stdio transport (what an MCP client launches). For HTTP instead:
-    #   server.run(transport="http", host="127.0.0.1", port=8000)
-    try:
-        server.run()
-    finally:
-        mgr.disconnect()
+server.run()

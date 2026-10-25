@@ -1,63 +1,21 @@
-"""ESP-NOW broadcast, fully wireless — Bluetooth to the boards, ESP-NOW between them.
+"""ESP-NOW broadcast: run it for every board; each shouts a tick per second
+and prints what the others send. Ctrl+C stops.
 
-Scans for every board advertising the bridge service, connects to each over
-Bluetooth (no USB cables; default password "esplink"), puts them in the
-battery power profile, and makes them all broadcast to ff:ff:ff:ff:ff:ff and
-listen — boards in range just talk:
-
-    uv run espnow_broadcast.py                # find and run every board
-    uv run espnow_broadcast.py relays spare2  # only these (name or MAC)
-
-cpu_freq(80) + link_power("battery") = 80 MHz CPU + relaxed BLE link (radio wakes ~2x/s
-instead of ~130x/s) — and ESP-NOW delivery actually improves, because a
-relaxed BLE link leaves more radio time for the Wi-Fi side. Messages just
-arrive in ~0.5 s batches instead of instantly. A board never hears its own
-broadcasts; with one board it still pairs up with any other board in range.
+    uv run wireless/espnow_broadcast.py
 """
-import contextlib
-import sys
+import itertools
 import time
 
-from esplink import Bridge, BridgeError, find_ble_devices
+from esplink import Bridge
 
-# .ident, not .mac: a named board advertises its name (only one identity fits
-# the scan response), so .mac is empty for those — .ident is always a selector.
-picks = sys.argv[1:] or [d.ident for d in find_ble_devices()]
-if not picks:
-    sys.exit("no boards advertising over Bluetooth")
-
-boards = []
-try:
-    for sel in picks:
-        esp = Bridge(sel, ble=True, password="esplink")
-        boards.append(esp)
-        mac = esp.espnow.begin()       # set up at full speed...
-        esp.cpu_freq(80)               # ...then relax the CPU
-        esp.link_power("battery")      # ...and the radio
-        me = esp.info.ident
-        print(f"{me}: Bluetooth link up (battery profile), ESP-NOW on {mac}")
-        esp.espnow.on_receive(
-            lambda src, data, rssi, me=me:
-                print(f"{me} heard [{src} {rssi}dBm] {data.decode(errors='replace')}")
-        )
-    if len(boards) == 1:
-        print("one board found — broadcasting anyway; it will talk to any "
-              "other board in range running this script")
-
-    n = 0
-    while True:
-        n += 1
-        for esp in boards:
+with Bridge() as esp:
+    print("ESP-NOW MAC", esp.espnow.begin())
+    esp.espnow.on_receive(lambda src, data, rssi: print(f"[{src} {rssi} dBm] {data!r}"))
+    try:
+        for n in itertools.count():
             esp.espnow.broadcast(f"{esp.info.ident}: tick {n}".encode())
-        time.sleep(1)
-except KeyboardInterrupt:
-    pass
-finally:
-    # Free each board's Wi-Fi driver (~50 KB) before exiting. Over BLE nothing
-    # resets the board between sessions, so a driver left resident would leave
-    # ~8 KB of heap and cripple every later Bluetooth session. suppress(): a
-    # board that never got ESP-NOW up must not mask the error that says why.
-    for esp in boards:
-        with contextlib.suppress(BridgeError):
-            esp.espnow.end()
-        esp.close()
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        esp.espnow.end()   # gives the Wi-Fi driver's ~50 KB back

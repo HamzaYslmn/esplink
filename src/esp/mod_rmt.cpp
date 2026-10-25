@@ -173,6 +173,7 @@ static void do_recv(RmtChan* c, uint8_t seq, uint16_t cmd,
                         const uint8_t* p, uint16_t len) {
   NEED(13);
   uint16_t idle = read_be16(p + 1), timeout = read_be16(p + 3), max_syms = read_be16(p + 5);
+  NEED_FREE_PINS(p + 7, 1);  // trigger pin (0xFF = none)
   uint8_t trig_pin = p[7], trig_level = p[8];
   uint32_t trig_us = read_be32(p + 9);
   if (max_syms == 0 || max_syms > RMT_MAX_RX_SYMS) max_syms = RMT_MAX_RX_SYMS;
@@ -240,6 +241,7 @@ void rmt_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
     if (len < 6 || p[1] > 1) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
     uint32_t hz = read_be32(p + 2);
     if (hz < 1000) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
+    NEED_FREE_PINS(p, 1);
     RmtChan* c = channel_for_pin(p[0]);
     if (c) { rmtDeinit(c->pin); free(c->loop_buf); c->loop_buf = nullptr; }
     else c = channel_for_pin(0xFF);  // no existing slot for this pin; find a free slot (pin == -1 means unused)

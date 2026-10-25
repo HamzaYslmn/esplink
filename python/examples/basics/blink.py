@@ -1,15 +1,15 @@
-"""Blink the on-board LED (GPIO 2 on most classic DevKits)."""
+"""Blink the on-board LED (GPIO 2 on most classic DevKits).
+
+    uv run basics/blink.py
+"""
 import time
 
 from esplink import Bridge
 
-LED = 2
-
 with Bridge() as esp:
-    print(f"connected: {esp.info.chip.name}, ping {esp.ping() * 1000:.1f} ms")
-    esp.gpio.mode(LED, "output")
+    esp.gpio.mode(2, "output")
     for _ in range(10):
-        esp.gpio.write(LED, 1)
+        esp.gpio.write(2, 1)
         time.sleep(0.25)
-        esp.gpio.write(LED, 0)
+        esp.gpio.write(2, 0)
         time.sleep(0.25)

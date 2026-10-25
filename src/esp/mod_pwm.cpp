@@ -8,9 +8,13 @@ void pwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   switch (op) {
     case 0x01: {  // ATTACH: pin, freq u32, res_bits
       NEED(6);
+      NEED_FREE_PINS(p, 1);
       uint8_t pin = p[0], res = p[5];
       uint32_t freq = read_be32(p + 1);
-      if (res < 1 || res > 16 || freq == 0) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
+      // The timer's width is the chip's (S3/C3 14 bits, classic 20; the wire caps
+      // at 16). freq x 2^res must also fit the LEDC clock — 40 MHz XTAL on S3/C3,
+      // 80 MHz APB on classic — which only ledcAttach can judge: ST_IO.
+      if (res < 1 || res > 16 || res > SOC_LEDC_TIMER_BIT_WIDTH || freq == 0) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       if (!ledcAttach(pin, freq, res)) { proto_reply_err(seq, cmd, ST_IO); return; }
       proto_reply_ok(seq, cmd);
       break;

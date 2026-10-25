@@ -1,21 +1,15 @@
-"""Stepper via an A4988/DRV8825 driver: STEP->GPIO12, DIR->GPIO14."""
+"""Stepper via an A4988/DRV8825 driver: STEP -> GPIO 12, DIR -> GPIO 14.
+
+    uv run devices/stepper_move.py
+"""
 import time
 
 from esplink import Bridge
-from esplink.drivers.stepper import Stepper
 
 with Bridge() as esp:
-    motor = Stepper(esp, step_pin=12, dir_pin=14)
-
-    print("one revolution forward with a ramp...")
-    motor.move(200, speed=800, accel=1600)   # 200 steps/rev (1.8 deg)
-    time.sleep(0.5)
-
-    print("back, constant speed...")
-    motor.move(-200, speed=400)
-    print(f"position: {motor.position}")
-
-    print("free-running 3 s...")
-    motor.run(600)
+    motor = esp.stepper(step_pin=12, dir_pin=14)
+    motor.move(200, speed=800, accel=1600)   # one revolution (1.8 deg/step), ramped
+    motor.move(-200, speed=400)              # and back, constant speed
+    motor.run(600)                           # free-run at 600 steps/s ...
     time.sleep(3)
     motor.stop()

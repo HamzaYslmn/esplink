@@ -39,6 +39,11 @@ void proto_log_heap(const char* stage);  // sends a SYS_LOG event: "<stage>, N B
 // Block until every queued frame is on the wire (baud switch / reset).
 void proto_tx_flush();
 
+// Wake rx_task now: link RX callbacks call this the moment bytes land, so a
+// request is parsed immediately instead of on the next 1 ms poll. Task context
+// only (UART event task, HW-CDC event loop, BT host task) — not from an ISR.
+void proto_rx_kick();
+
 uint32_t proto_dropped_events();
 
 // The Wi-Fi link's frame buffers (~4.5 KB: one TX stream + one RX accumulator),

@@ -1,6 +1,5 @@
-// GPIO (nRF52): modes, read/write, batch ops. Edge-watch (GPIO_WATCH) is not
-// implemented on this build and replies ST_UNSUPPORTED. Counterpart to
-// src/esp/mod_gpio.cpp.
+// GPIO (nRF52): modes, read/write, batch ops, edge-watch (GPIOTE, 8 pins).
+// Counterpart to src/esp/mod_gpio.cpp.
 #if defined(ARDUINO_ARCH_NRF52)
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
@@ -14,6 +13,8 @@
 static uint8_t pin_mode[BRIDGE_PIN_COUNT];  // last mode set via SET_MODE (0xFF = unknown)
 
 static bool is_valid_pin(uint8_t pin) { return pin < BRIDGE_PIN_COUNT; }
+
+uint32_t nrf_pwm_read(uint8_t pin, uint32_t* duty);  // mod_pwm.cpp
 
 // ---- edge watch -------------------------------------------------------------
 // The nRF core exposes attachInterrupt(pin, fn, mode) but NOT the *Arg variant,
@@ -163,25 +164,27 @@ void gpio_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       uint8_t pin = p[0];
       if (!is_valid_pin(pin)) { proto_reply_err(seq, cmd, ST_BAD_PIN); return; }
       uint8_t buf[10];
+      uint32_t duty, freq = nrf_pwm_read(pin, &duty);  // freq 0 = no PWM here
       buf[0] = (uint8_t)digitalRead(pin);
       buf[1] = pin_mode[pin];
-      write_be32(buf + 2, 0);  // PWM state not tracked per-pin here (see mod_pwm)
-      write_be32(buf + 6, 0);
+      write_be32(buf + 2, freq);
+      write_be32(buf + 6, duty);
       proto_reply(seq, cmd, buf, 10);
       break;
     }
 
-    case 0x09: {  // DUMP: every bridge-configured pin
+    case 0x09: {  // DUMP: every bridge-configured or PWM-driven pin
       uint8_t buf[BRIDGE_PIN_COUNT * 11 + 1];
       uint16_t n = 1;
       uint8_t count = 0;
       for (uint8_t pin = 0; pin < BRIDGE_PIN_COUNT; pin++) {
-        if (pin_mode[pin] == 0xFF) continue;  // untouched: skip
+        uint32_t duty, freq = nrf_pwm_read(pin, &duty);
+        if (pin_mode[pin] == 0xFF && freq == 0) continue;  // untouched: skip
         buf[n++] = pin;
         buf[n++] = pin_mode[pin];
         buf[n++] = (uint8_t)digitalRead(pin);
-        write_be32(buf + n, 0); n += 4;
-        write_be32(buf + n, 0); n += 4;
+        write_be32(buf + n, freq); n += 4;
+        write_be32(buf + n, duty); n += 4;
         count++;
       }
       buf[0] = count;

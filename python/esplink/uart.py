@@ -85,7 +85,7 @@ class UartPort:
                 self._cond.wait(remaining)
 
     def on_rx(self, callback) -> None:
-        """callback(bytes) on every RX chunk (runs on the reader thread)."""
+        """callback(bytes) on every RX chunk (on the Bridge's event thread)."""
         self._callbacks.append(callback)
 
     def close(self) -> None:

@@ -98,8 +98,7 @@ class Can:
             return None
 
     def on_message(self, callback) -> None:
-        """callback(Message) for every received frame (reader thread —
-        don't call blocking bridge requests from inside it)."""
+        """callback(Message) for every received frame (on the Bridge's event thread)."""
         self._callbacks.append(callback)
 
     def status(self) -> dict:

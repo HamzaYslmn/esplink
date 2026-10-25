@@ -263,7 +263,7 @@ class Net:
         bridge.on_event(C.NET_ACCEPT_EVT, self._on_accept)
         bridge.on_event(C.NET_CLOSED_EVT, self._on_closed)
 
-    # ---- event handlers — all called on the reader thread ---------------------
+    # ---- event handlers — all called on the event thread ---------------------
 
     def _on_data(self, p: bytes) -> None:
         s = self._sockets.get(p[0]) if p else None

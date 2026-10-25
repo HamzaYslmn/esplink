@@ -32,7 +32,9 @@ class _Async:
         if self._target is None:
             raise RuntimeError("AsyncBridge is not connected — use `async with AsyncBridge(...)`")
         attr = getattr(self._target, name)
-        if name in Bridge._SUBAPIS:
+        # Callable first: Gpio.watch is a method that shares its name with the
+        # esp.watch sub-API. Only the Bridge itself hands out sub-APIs.
+        if not callable(attr) and isinstance(self._target, Bridge) and name in Bridge._SUBAPIS:
             return _Async(attr)
         if callable(attr):
             @functools.wraps(attr)
@@ -71,24 +73,40 @@ class AsyncBridge(_Async):
         if self._target is not None and self._owned:
             await asyncio.to_thread(self._target.close)
 
-    def events(self, cmd: int, parse=None):
+    def events(self, cmd: int, parse=None) -> _Events:
         """``async for`` over firmware event ``cmd`` — payload bytes, or
         ``parse(payload)`` (e.g. ``EdgeEvent.parse``, ``WatchEvent.parse``).
-        Subscribed from this call on; leaving the loop unsubscribes."""
-        loop = asyncio.get_running_loop()
-        queue: asyncio.Queue = asyncio.Queue()
+        Subscribed from this call on; ``aclose()`` (or leaving ``async with``)
+        unsubscribes, iterated or not."""
+        return _Events(self._target, cmd, parse)
 
-        def on_event(payload: bytes) -> None:  # reader thread -> event loop
-            item = parse(payload) if parse else payload
-            if item is not None:
-                loop.call_soon_threadsafe(queue.put_nowait, item)
 
-        self._target.on_event(cmd, on_event)
+class _Events:
+    """Event stream. A class, not an async generator: a generator's cleanup never
+    runs if it was never started, and a timed-out ``anext`` would end it."""
 
-        async def stream():
-            try:
-                while True:
-                    yield await queue.get()
-            finally:
-                self._target.off_event(cmd, on_event)
-        return stream()
+    def __init__(self, bridge: Bridge, cmd: int, parse):
+        self._b, self._cmd, self._parse = bridge, cmd, parse
+        self._loop = asyncio.get_running_loop()
+        self._queue: asyncio.Queue = asyncio.Queue()
+        bridge.on_event(cmd, self._on_event)
+
+    def _on_event(self, payload: bytes) -> None:  # Bridge event thread -> event loop
+        item = self._parse(payload) if self._parse else payload
+        if item is not None and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return await self._queue.get()
+
+    async def aclose(self) -> None:
+        self._b.off_event(self._cmd, self._on_event)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        await self.aclose()

@@ -18,17 +18,24 @@
     Device.pin_factory = factory
 
 Supported: input/output, pull-up/down, edge detection with debounce
-(``when_pressed``/``when_changed``), and PWM (``PWMLED``, ``value=0.5``).
+(``when_pressed``/``when_changed``, run on a background thread so they may
+drive other pins), PWM at any frequency (``PWMLED``, ``Servo``, ``Motor``),
+and SPI devices (``MCP3008`` & co) on the ESP32's SPI host::
+
+    adc = MCP3008(channel=0, pin_factory=factory)   # SCK 18, MOSI 23, MISO 19, CS 5
+    adc = MCP3008(channel=0, select_pin=27, pin_factory=factory)
 """
 from __future__ import annotations
 
 import time
 
-from gpiozero.exc import PinInvalidFunction, PinInvalidPin, PinInvalidPull, PinSetInput
-from gpiozero.pins import BoardInfo, Factory, HeaderInfo, Pin, PinInfo
+from gpiozero.exc import (PinInvalidFunction, PinInvalidPin, PinInvalidPull,
+                          PinSetInput, SPIBadArgs)
+from gpiozero.pins import SPI, BoardInfo, Factory, HeaderInfo, Pin, PinInfo
 
-_PWM_RES_BITS = 12
-_PWM_MAX = (1 << _PWM_RES_BITS) - 1
+from ..pwm import pwm_bits
+from .spidev import SpiDev
+
 _EDGE_MAP = {"both": "change", "rising": "rising", "falling": "falling"}
 _PULL_MODES = {"floating": "input", "up": "input_pullup", "down": "input_pulldown"}
 
@@ -62,6 +69,7 @@ class EspLinkPin(Pin):
         self._pull = "floating"
         self._frequency: float | None = None
         self._duty = 0.0
+        self._duty_max = 0
         self._bounce: float | None = None
         self._edges = "both"
         self._when_changed = None
@@ -106,7 +114,7 @@ class EspLinkPin(Pin):
     def _set_state(self, value):
         if self._frequency is not None:
             self._duty = max(0.0, min(1.0, float(value)))
-            self._pwm.write(self._n, round(self._duty * _PWM_MAX))
+            self._pwm.write(self._n, round(self._duty * self._duty_max))
         elif self._function == "input":
             raise PinSetInput(f"cannot set state of input {self!r}")
         else:
@@ -136,9 +144,10 @@ class EspLinkPin(Pin):
                     self._gpio.mode(self._n, "output")
                     self._gpio.write(self._n, False)
         else:
-            self._pwm.attach(self._n, int(value), _PWM_RES_BITS)
-            self._frequency = float(value)
-            self._pwm.write(self._n, round(self._duty * _PWM_MAX))
+            bits = pwm_bits(value)
+            self._pwm.attach(self._n, int(value), bits)
+            self._frequency, self._duty_max = float(value), (1 << bits) - 1
+            self._pwm.write(self._n, round(self._duty * self._duty_max))
 
     # ---- edge detection ----------------------------------------------------------------
     def _get_bounce(self):
@@ -174,7 +183,7 @@ class EspLinkPin(Pin):
                              debounce_ms=debounce_ms, callback=self._on_edge)
             self._watching = True
 
-    def _on_edge(self, event):
+    def _on_edge(self, event):  # the Bridge's event thread: requests are fine here
         cb = self._when_changed
         if cb is not None:
             cb(self._factory.ticks(), event.level)
@@ -211,14 +220,30 @@ class EspLinkFactory(Factory):
     def board_info(self):
         return self._board_info
 
-    def pin(self, name):
+    def _info(self, name) -> PinInfo:
         for _header, info in self.board_info.find_pin(name):
-            pin = self.pins.get(info)
-            if pin is None:
-                pin = EspLinkPin(self, info)
-                self.pins[info] = pin
-            return pin
+            return info
         raise PinInvalidPin(f"{name} is not a valid pin name")
+
+    def pin(self, name):
+        info = self._info(name)
+        pin = self.pins.get(info)
+        if pin is None:
+            pin = EspLinkPin(self, info)
+            self.pins[info] = pin
+        return pin
+
+    def spi(self, *, port=0, device=None, clock_pin=18, mosi_pin=23, miso_pin=19,
+            select_pin=None, shared=False):
+        """gpiozero's SPI arguments, with the ESP32's pins as defaults:
+        ``device`` 0/1 means CS GPIO5/GPIO15, or name any ``select_pin``."""
+        if device is not None and select_pin is not None:
+            raise SPIBadArgs("give device or select_pin, not both")
+        if select_pin is None:
+            select_pin = (5, 15)[device or 0]
+        pins = [None if p is None else self._info(p).number
+                for p in (clock_pin, mosi_pin, miso_pin, select_pin)]
+        return EspLinkSPI(self, port, *pins)
 
     def ticks(self):
         return time.monotonic()
@@ -231,3 +256,56 @@ class EspLinkFactory(Factory):
         for pin in list(self.pins.values()):
             pin.close()
         self.pins.clear()
+
+
+class EspLinkSPI(SPI):
+    """gpiozero SPI interface over esplink's spidev shim."""
+
+    def __init__(self, factory, host, clock_pin, mosi_pin, miso_pin, select_pin):
+        self._dev = None
+        super().__init__(pin_factory=factory)
+        self._cs = select_pin
+        factory.reserve_pins(self, *(p for p in (clock_pin, mosi_pin, miso_pin, select_pin)
+                                     if p is not None))
+        self._dev = SpiDev(factory._esp, host, 0, sck=clock_pin, mosi=mosi_pin,
+                           miso=miso_pin, ce=(select_pin,))
+
+    def _conflicts_with(self, other):  # devices on one bus share SCK/MOSI/MISO
+        return not (isinstance(other, EspLinkSPI) and other._cs != self._cs)
+
+    @property
+    def closed(self):
+        return self._dev is None
+
+    def close(self):
+        if self._dev is not None:
+            self._dev = None  # keep the host up: other devices may share it
+            self.pin_factory.release_all(self)
+        super().close()
+
+    def __repr__(self):
+        return f"SPI(select_pin={self._cs})" if self._dev else "SPI(closed)"
+
+    def transfer(self, data):
+        return self._dev.xfer2(data)
+
+    def _get_clock_mode(self):
+        return self._dev.mode
+
+    def _set_clock_mode(self, value):
+        self._dev.mode = value
+
+    def _get_lsb_first(self):
+        return self._dev.lsbfirst
+
+    def _set_lsb_first(self, value):
+        self._dev.lsbfirst = bool(value)
+
+    def _get_bits_per_word(self):
+        return self._dev.bits_per_word
+
+    def _get_rate(self):
+        return self._dev.max_speed_hz
+
+    def _set_rate(self, value):
+        self._dev.max_speed_hz = int(value)

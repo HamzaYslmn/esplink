@@ -52,23 +52,21 @@ class SerialTransport:
         import serial
 
         self.usb_chip = usb_chip
-        # Native USB-Serial-JTAG wires DTR/RTS straight to GPIO0 and EN: opening
-        # with them asserted holds the chip in reset and boots it into the ROM
-        # downloader, so those ports always open with both lines released.
-        if reset and usb_chip != "native":
-            self.ser = serial.Serial(port, baudrate=baud, timeout=0.05,
-                                     write_timeout=2.0)
-            return
-        # Opening a port asserts DTR/RTS, and on a DevKit those lines *are* the
-        # auto-reset circuit — so the plain open above reboots the board. Set
-        # them before opening to attach to a running board instead: that is what
-        # reset_on_open=False promises, and what keeps enumerating a fleet from
-        # rebooting boards that are already talking on another link.
         self.ser = serial.Serial(baudrate=baud, timeout=0.05, write_timeout=2.0)
-        self.ser.dtr = False
-        self.ser.rts = False
+        # Opening asserts DTR/RTS, and on a DevKit those lines *are* the
+        # auto-reset circuit: left asserted, the open reboots the board. Released
+        # first, it attaches to a running board instead (reset=False, which keeps
+        # a fleet enumeration from rebooting boards busy on another link). Native
+        # USB-Serial-JTAG always opens released: there DTR/RTS are GPIO0 and EN
+        # themselves, and asserting them parks the chip in the ROM downloader.
+        if not reset or usb_chip == "native":
+            self.ser.dtr = self.ser.rts = False
         self.ser.port = port
         self.ser.open()
+        # A frame delimiter first: whatever half-frame the board's parser holds
+        # (boot noise, an esptool probe, a killed session) ends here instead of
+        # corrupting our first request and costing a 1 s handshake retry.
+        self.ser.write(bytes(1))  # one 0x00
 
     def read(self) -> bytes:
         # One syscall: drain whatever's buffered, else block up to `timeout` for 1 byte.

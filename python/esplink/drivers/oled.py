@@ -28,6 +28,12 @@ Only genuine 1.3" SH1106 modules (window centered in 132-column RAM) need
 ``OLED(esp, colstart=2)`` — symptom: image shifted sideways with a stripe of
 stale pixels at one edge; try colstart 0..4.
 
+Speed: ``show()`` sends only the column span that changed on each page, so a
+ticking counter costs a few dozen bytes instead of 1 KB. A full-frame change is
+I2C-bound (~24 ms per 1 KB at the safe default 400 kHz); many modules also run
+at ``OLED(esp, freq=1_000_000)`` (beyond the SSD1306's rated 400 kHz, so go
+back down if the image glitches — weak pull-ups are the usual limit).
+
 Every common panel adjustment has a named method — no datasheet bytes needed:
 ``contrast(0..255)``, ``invert()``, ``power(False)``, ``vertical_offset(rows)``,
 ``start_line(row)``, ``flip(horizontal=..., vertical=...)`` and the
@@ -74,6 +80,9 @@ class OLED:
         # largest data write minus the control byte — read after init(),
         # which learns the Wire buffer the firmware actually allocated
         self._chunk = esp.i2c.max_write - 1
+        # {colstart: page bytes} the panel holds, so show() sends only what
+        # changed; keyed by colstart because moving the window repaints it all
+        self._sent: dict[int, list[bytes]] = {}
         if addr is None:
             found = self._i2c.scan(bus)
             addr = next((a for a in (0x3C, 0x3D) if a in found), None)
@@ -121,25 +130,35 @@ class OLED:
         # must be bit-reversed (handled by the _BITREV lookup table).
         raw = image.transpose(self._Image.Transpose.TRANSPOSE).tobytes()
         bpr = self.height // 8  # transposed row = bpr bytes, one per page
-        chunk = self._chunk
-        for page in range(bpr):
-            data = raw[page::bpr].translate(_BITREV)
-            # All writes except the very last are fire-and-forget (pipelined).
-            # The final write uses wait=True, which flushes the pipeline and
-            # ensures the full frame is committed before show() returns.
-            # A page only splits across multiple writes when the Wire buffer is
-            # small (a board with a constrained heap).
-            # We re-send the page+column address before every chunk because
-            # some SH1106 clones do not preserve the column pointer across I2C
-            # transaction boundaries; re-addressing is always safe.
-            for off in range(0, len(data), chunk):
+        pages = [raw[p::bpr].translate(_BITREV) for p in range(bpr)]
+        prev = self._sent.get(self.colstart)
+        writes = []
+        for page, new in enumerate(pages):
+            lo, hi = 0, len(new)
+            if prev:  # send only the changed column span of each page
+                old = prev[page]
+                if new == old:
+                    continue
+                while new[lo] == old[lo]:
+                    lo += 1
+                while new[hi - 1] == old[hi - 1]:
+                    hi -= 1
+            # Every chunk is re-addressed: some SH1106 clones don't keep the
+            # column pointer across transactions. A span only splits when the
+            # Wire buffer is small (a board with a constrained heap). Address
+            # and data stay separate writes: merging them with Co-bit control
+            # bytes measured ~25% slower full frames over BLE on an S3.
+            for off in range(lo, hi, self._chunk):
                 col = self.colstart + off
-                self.command(0xB0 + page, 0x00 | (col & 0x0F),
-                             0x10 | (col >> 4), wait=False)
-                end = min(off + chunk, len(data))
-                self._i2c.write(self.addr, bytes([_DATA]) + data[off:end],
-                                self._bus,
-                                wait=page == bpr - 1 and end >= len(data))
+                writes.append(bytes([_CMD, 0xB0 + page, col & 0x0F, 0x10 | (col >> 4)]))
+                writes.append(bytes([_DATA]) + new[off:min(off + self._chunk, hi)])
+        # Pipelined: all but the last write are fire-and-forget; the last waits,
+        # so show() returns with the frame committed. The cache is dropped while
+        # writing, so a failure mid-frame makes the next show() repaint it all.
+        self._sent = {}
+        for i, data in enumerate(writes, 1):
+            self._i2c.write(self.addr, data, self._bus, wait=i == len(writes))
+        self._sent = {self.colstart: pages}
 
     @contextlib.contextmanager
     def draw(self):
@@ -149,6 +168,9 @@ class OLED:
         self.show(image)
 
     def clear(self) -> None:
+        """Blank the panel, rewriting all of its RAM (so it also repairs a
+        panel whose RAM changed behind the driver's back)."""
+        self._sent = {}
         self.show(None)
 
     # ---- panel controls -----------------------------------------------------------
@@ -181,7 +203,8 @@ class OLED:
 
         flip(horizontal=True, vertical=True) is a 180° rotation. The vertical
         mirror applies instantly; the horizontal one applies from the next
-        show() (it remaps how RAM is written).
+        show() (it remaps how RAM is written, so that show() repaints it all).
         """
+        self._sent = {}
         self.command(0xA0 if horizontal else 0xA1,
                      0xC0 if vertical else 0xC8)

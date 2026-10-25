@@ -85,15 +85,6 @@
   #define BRIDGE_HAS_ESPNOW  1
   #define BRIDGE_SPI_HOST0   VSPI
   #define BRIDGE_SPI_HOST1   HSPI
-#elif defined(CONFIG_IDF_TARGET_ESP32S2)
-  #define BRIDGE_CHIP        CHIP_ESP32S2
-  #define BRIDGE_HAS_DAC     1
-  #define BRIDGE_HAS_TOUCH   1
-  #define BRIDGE_HAS_BT_CLASSIC 0
-  #define BRIDGE_HAS_BLE     0
-  #define BRIDGE_HAS_ESPNOW  1
-  #define BRIDGE_SPI_HOST0   FSPI
-  #define BRIDGE_SPI_HOST1   HSPI
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   #define BRIDGE_CHIP        CHIP_ESP32S3
   #define BRIDGE_HAS_DAC     0
@@ -112,24 +103,8 @@
   #define BRIDGE_HAS_ESPNOW  1
   #define BRIDGE_SPI_HOST0   FSPI
   #define BRIDGE_SPI_HOST1   FSPI
-#elif defined(CONFIG_IDF_TARGET_ESP32C6)
-  #define BRIDGE_CHIP        CHIP_ESP32C6
-  #define BRIDGE_HAS_DAC     0
-  #define BRIDGE_HAS_TOUCH   0
-  #define BRIDGE_HAS_BT_CLASSIC 0
-  #define BRIDGE_HAS_BLE     1
-  #define BRIDGE_HAS_ESPNOW  1
-  #define BRIDGE_SPI_HOST0   FSPI
-  #define BRIDGE_SPI_HOST1   FSPI
 #else
-  #define BRIDGE_CHIP        CHIP_UNKNOWN
-  #define BRIDGE_HAS_DAC     0
-  #define BRIDGE_HAS_TOUCH   0
-  #define BRIDGE_HAS_BT_CLASSIC 0
-  #define BRIDGE_HAS_BLE     0
-  #define BRIDGE_HAS_ESPNOW  0
-  #define BRIDGE_SPI_HOST0   FSPI
-  #define BRIDGE_SPI_HOST1   FSPI
+  #error "esplink supports ESP32, ESP32-S3, ESP32-C3 and nRF52840"
 #endif
 
 // ---- v0.3.0 modules ---------------------------------------------------------
@@ -165,7 +140,7 @@
 #else
   #define BRIDGE_HAS_I2S   0
 #endif
-#ifdef SOC_MCPWM_SUPPORTED  // esp32/s3/c6 — NOT s2/c3
+#ifdef SOC_MCPWM_SUPPORTED  // esp32/s3 — NOT c3
   #define BRIDGE_HAS_MCPWM 1
 #else
   #define BRIDGE_HAS_MCPWM 0
@@ -186,14 +161,14 @@
 #else
   #define BRIDGE_ETH 0
 #endif
-#if BRIDGE_ENABLE_CAM && (defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3))
+#if BRIDGE_ENABLE_CAM && (defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S3))
   #define BRIDGE_CAM 1
 #else
   #define BRIDGE_CAM 0
 #endif
 
 // The core's BLE library builds on whichever host the chip's IDF ships —
-// Bluedroid on the classic ESP32, NimBLE on S3/C3/C6 — so every chip with a
+// Bluedroid on the classic ESP32, NimBLE on S3/C3 — so every chip with a
 // BLE radio gets the link (same guard as the library itself).
 #if BRIDGE_ENABLE_BLE && BRIDGE_HAS_BLE && defined(SOC_BLE_SUPPORTED) && \
     (defined(CONFIG_BLUEDROID_ENABLED) || defined(CONFIG_NIMBLE_ENABLED))
@@ -202,7 +177,7 @@
   #define BRIDGE_BLE 0
 #endif
 
-// Native USB CDC (S2/S3/C3/...): Serial is HWCDC, baud is meaningless.
+// Native USB CDC (S3/C3): Serial is HWCDC, baud is meaningless.
 #if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
   #define BRIDGE_NATIVE_USB 1
 #else

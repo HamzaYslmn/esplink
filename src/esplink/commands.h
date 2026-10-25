@@ -7,9 +7,9 @@
 // Firmware version, identical to library.properties and python/pyproject.toml so
 // SYS_INFO names the exact release (test_contract_sync.py enforces the lockstep).
 // PROTOCOL_VERSION above remains the hard compatibility gate.
-#define FW_VERSION_MAJOR 1
+#define FW_VERSION_MAJOR 2
 #define FW_VERSION_MINOR 0
-#define FW_VERSION_PATCH 2
+#define FW_VERSION_PATCH 0
 
 // Frame (logical, pre-COBS):
 //   flags u8 | seq u8 | cmd u16 BE | payload .. | crc16 BE
@@ -74,11 +74,11 @@ enum Status : uint8_t {
 #define CAPIF(flag, bit) ((flag) ? (bit) : 0UL)
 
 // ---- chip models ------------------------------------------------------------
-// Values 1..6 are Espressif parts; 7+ are non-ESP ports that speak the same
-// protocol over a capability-gated subset of modules (the host degrades by caps).
+// Values 1..6 are Espressif parts (2/5/6 were S2/C6/H2, dropped: never reuse);
+// 7+ are non-ESP ports that speak the same protocol over a capability-gated
+// subset of modules (the host degrades by caps).
 enum ChipModel : uint8_t {
-  CHIP_UNKNOWN = 0, CHIP_ESP32 = 1, CHIP_ESP32S2 = 2, CHIP_ESP32S3 = 3,
-  CHIP_ESP32C3 = 4, CHIP_ESP32C6 = 5, CHIP_ESP32H2 = 6,
+  CHIP_UNKNOWN = 0, CHIP_ESP32 = 1, CHIP_ESP32S3 = 3, CHIP_ESP32C3 = 4,
   CHIP_NRF52840 = 7,  // Nordic nRF52840 (Seeed XIAO / Adafruit Bluefruit core)
 };
 
@@ -163,7 +163,6 @@ enum ChipModel : uint8_t {
 // DAC (classic ESP32 only: GPIO25/26)
 #define DAC_WRITE       CMD(MOD_DAC, 0x01)  // pin u8|value u8
 #define DAC_COSINE      CMD(MOD_DAC, 0x02)  // pin u8|freq u32|scale u8(0..3)|offset i8|phase u8(0|1=180deg)
-#define DAC_COS_STOP    CMD(MOD_DAC, 0x03)  // pin u8
 #define DAC_DISABLE     CMD(MOD_DAC, 0x04)  // pin u8
 
 // TOUCH
@@ -195,7 +194,7 @@ enum ChipModel : uint8_t {
 #define RMT_MAX_RX_SYMS 1020  // capture cap per RMT_RECV reply (2 bytes each)
 
 // MCPWM — complementary PWM pair with hardware deadtime (H-bridge drivers).
-// Not on ESP32-S2/C3 (no MCPWM peripheral).
+// Not on ESP32-C3 (no MCPWM peripheral).
 #define MCPWM_INIT      CMD(MOD_MCPWM, 0x01) // pin_a u8|pin_b i8 (-1 = single)|freq u32|deadtime_ns u16
 #define MCPWM_DUTY      CMD(MOD_MCPWM, 0x02) // permille u16 (0..1000)
 #define MCPWM_STOP      CMD(MOD_MCPWM, 0x03)
@@ -335,7 +334,6 @@ enum ChipModel : uint8_t {
 #define BLE_GATTS_WR_EVT CMD(MOD_BLE, 0x81) // char_id u8|data..
 #define BLE_GATTS_CONN_EVT CMD(MOD_BLE, 0x82) // connected u8
 #define BLE_GATTC_NTFY_EVT CMD(MOD_BLE, 0x83) // chr_uuid[16]|data..
-#define BLE_GATTC_DISC_EVT CMD(MOD_BLE, 0x84) // (disconnected)
 
 // GATT characteristic property bits (BLE_GATTS_DEF props)
 #define GATT_PROP_READ   0x01
@@ -410,7 +408,6 @@ enum ChipModel : uint8_t {
 //     inside:  active when a<=v<=b ;  outside: active when v<a || v>b
 //     changed: emit whenever |v - last_emitted| >= a   (a = delta; b unused)
 //   flags u8:  bit0 emit on enter | bit1 emit on exit | bit2 emit first sample
-#define WATCH_ADD       CMD(MOD_WATCH, 0x01) // id u8|source u8|arg u8|aux u8|cmp u8|flags u8|period_ms u16|a i32|b i32
 #define WATCH_REMOVE    CMD(MOD_WATCH, 0x02) // id u8
 #define WATCH_CLEAR     CMD(MOD_WATCH, 0x03) // (remove every rule)
 #define WATCH_LIST      CMD(MOD_WATCH, 0x04) // -> n u8|{id u8|state u8|value i32}*n

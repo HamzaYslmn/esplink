@@ -1,6 +1,6 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // Camera support via esp32-camera. Opt-in with BRIDGE_ENABLE_CAM; requires PSRAM (checked at INIT time).
-// Supported chips: ESP32, S2, S3. The host sends a full pin map (use presets from esplink.camera).
+// Supported chips: ESP32, S3. The host sends a full pin map (use presets from esplink.camera).
 // One frame is captured and held in PSRAM, then read back in <=2 KB chunks.
 // Produces JPEG snapshots only — not streaming video. Runs on slow_task.
 #include "esplink/protocol.h"

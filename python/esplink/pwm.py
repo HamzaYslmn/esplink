@@ -6,6 +6,13 @@ import struct
 from . import constants as C
 
 
+def pwm_bits(freq: float) -> int:
+    """Finest LEDC/nRF duty resolution that still fits ``freq``: the 16 MHz
+    clock (the nRF's; the ESP's is 80) needs freq * 2**bits <= 16e6, capped at
+    the 14 bits every chip supports — 14 at 50 Hz servos, 9 at 20 kHz motors."""
+    return max(1, min(14, (16_000_000 // max(1, int(freq))).bit_length() - 1))
+
+
 def _full_scale(res_bits: int) -> int:
     """Largest raw LEDC duty count for a given resolution (2**res_bits - 1)."""
     return (1 << res_bits) - 1
@@ -23,8 +30,11 @@ class Pwm:
         self._b = bridge
         self._attached: dict[int, tuple[int, int]] = {}  # pin -> (freq_hz, resolution_bits)
 
-    def attach(self, pin: int, freq: int = 1000, resolution_bits: int = 10) -> None:
-        """Start a PWM channel on a pin at `freq` Hz with the given duty resolution."""
+    def attach(self, pin: int, freq: int = 1000, resolution_bits: int | None = None) -> None:
+        """Start a PWM channel on a pin at `freq` Hz. Resolution defaults to 10 bits
+        (duty 0..1023), or the finest that fits when `freq` is too high for 10."""
+        if resolution_bits is None:
+            resolution_bits = min(10, pwm_bits(freq))
         self._b.request(C.PWM_ATTACH, struct.pack(">BIB", pin, freq, resolution_bits))
         self._attached[pin] = (freq, resolution_bits)
 

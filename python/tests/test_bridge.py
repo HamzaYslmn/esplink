@@ -196,6 +196,22 @@ def test_gpio_edge_events_dispatch(bridge, fw):
     assert got[0].pin == 4 and got[0].level == 0 and got[0].millis == 12345
 
 
+def test_event_callback_can_make_requests(bridge, fw):
+    """Callbacks run off the reader thread, so one that makes a request (a
+    button toggling an LED) gets its reply instead of deadlocking the link."""
+    done = threading.Event()
+
+    def on_edge(ev):
+        bridge.gpio.write(2, 1)
+        done.set()
+
+    bridge.gpio.mode(2, "output")
+    bridge.gpio.watch(4, "falling", callback=on_edge)
+    fw.emit(C.GPIO_EDGE_EVT, bytes([4, 0]) + (1).to_bytes(4, "big"))
+    assert done.wait(1.0)
+    assert fw.gpio_levels[2] == 1
+
+
 def test_wildcard_event_handler(bridge, fw):
     frames = []
     done = threading.Event()

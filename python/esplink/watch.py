@@ -18,7 +18,7 @@ It's not analog-only — the *source* is whatever you pick:
     esp.watch.add("touch", pin=4, below=40, callback=on_trip)                    # touch pad
     esp.watch.add("heap", change=20000, callback=on_trip)                        # free RAM
 
-The callback runs on the bridge's reader thread. From asyncio:
+Callbacks run on the bridge's event thread (requests are fine). From asyncio:
 ``async for ev in esp.events(C.WATCH_EVT, WatchEvent.parse)`` (see :mod:`esplink.aio`).
 
 Rules can also *act on the board itself* — no host round trip, so the reaction
@@ -37,7 +37,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import constants as C
-from .analog import ATTEN
+from .analog import atten_code
 from .errors import RemoteError
 
 # source ids (must match mod_watch.cpp)
@@ -165,7 +165,7 @@ class Watch:
                    pin reflects the rule's state from arm time), and needs
                    bridge firmware >= 0.16.0. For change= rules only ``do``
                    fires (there is no "cleared" state to undo).
-        callback:  callback(WatchEvent), called on the reader thread when it fires.
+        callback:  callback(WatchEvent), called on the event thread when it fires.
         """
         src = SOURCES[source] if isinstance(source, str) else int(source)
         if src != SOURCES["heap"] and pin is None:
@@ -184,7 +184,7 @@ class Watch:
             id = self._alloc_id()
         flags = ((_F_ENTER if on_enter else 0) | (_F_EXIT if on_exit else 0)
                  | (_F_INITIAL if initial else 0))
-        aux = ATTEN.get(atten, int(atten)) if src in (0, 1) else 0
+        aux = atten_code(atten) if src in (0, 1) else 0
         body = struct.pack(">BBBBBBHii", id, src, pin or 0, aux, cmp, flags,
                            int(period_ms), a, b)
         # ADD2 carries the rule and its actions in one frame, so the rule is

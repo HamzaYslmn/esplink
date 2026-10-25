@@ -1,7 +1,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 // MCPWM: one complementary PWM pair with HW deadtime for H-bridge/half-bridge
 // drivers (switches must never co-conduct). LEDC (mod_pwm) covers the rest.
-// Absent on ESP32-S2/C3. IDF "prelude" driver, single instance.
+// Absent on ESP32-C3. IDF "prelude" driver, single instance.
 #include "esplink/protocol.h"
 #include "esplink/modules.h"
 
@@ -31,6 +31,7 @@ void mcpwm_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   switch (op) {
     case 0x01: {  // INIT: pin_a u8|pin_b i8 (-1 single)|freq u32|deadtime_ns u16
       NEED(8);
+      NEED_FREE_PINS(p, 2);  // pin_a, pin_b
       uint32_t freq = read_be32(p + 2);
       if (freq == 0 || freq > MCPWM_RES_HZ / 4) { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       mcpwm_teardown();

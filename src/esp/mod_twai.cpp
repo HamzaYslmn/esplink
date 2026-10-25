@@ -39,6 +39,7 @@ void twai_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (len < 4 || p[2] > 2 || p[3] >= sizeof(TIMINGS) / sizeof(TIMINGS[0]))
         { proto_reply_err(seq, cmd, ST_BAD_ARGS); return; }
       if (twai_up) { proto_reply_err(seq, cmd, ST_BUSY); return; }
+      NEED_FREE_PINS(p, 2);  // tx, rx
       twai_mode_t mode = p[2] == 1 ? TWAI_MODE_LISTEN_ONLY
                        : p[2] == 2 ? TWAI_MODE_NO_ACK : TWAI_MODE_NORMAL;
       twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(

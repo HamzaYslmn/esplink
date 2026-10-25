@@ -19,6 +19,7 @@ void i2s_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   switch (op) {
     case 0x01: {  // INIT: dir|bclk|ws|dout|din|rate u32|bits|stereo
       NEED(11);
+      NEED_FREE_PINS(p + 1, 4);  // bclk, ws, dout, din
       if (i2s_up) { proto_reply_err(seq, cmd, ST_BUSY); return; }
       i2s_data_bit_width_t bits =
           p[9] == 8 ? I2S_DATA_BIT_WIDTH_8BIT

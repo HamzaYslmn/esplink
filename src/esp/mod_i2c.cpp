@@ -9,7 +9,7 @@ static bool i2c_inited[2];
 static TwoWire* bus_for_index(uint8_t idx) {
   if (idx == 0) return &Wire;
 #if SOC_I2C_NUM > 1
-  if (idx == 1) return &Wire1;  // C3/C6/H2 have a single I2C controller
+  if (idx == 1) return &Wire1;  // C3 has a single I2C controller
 #endif
   return nullptr;
 }
@@ -26,6 +26,7 @@ void i2c_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   switch (op) {
     case 0x01: {  // INIT: bus, sda, scl, freq u32 -> wire_buf u16
       NEED(7);
+      NEED_FREE_PINS(p + 1, 2);  // sda, scl
       if (i2c_inited[bus]) w->end();
       // The default 128 B Wire TX buffer silently truncates larger writes.
       // setBufferSize() requires ~2× the requested size in free heap, so try
@@ -48,7 +49,12 @@ void i2c_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       uint8_t n = 0;
       for (uint8_t a = 1; a < 0x78; a++) {
         w->beginTransmission(a);
-        if (w->endTransmission() == 0) buf[1 + n++] = a;
+        uint8_t r = w->endTransmission();
+        if (r == 0) buf[1 + n++] = a;
+        // Anything but ACK/NACK (timeout, bus error) means the bus itself is
+        // dead — no pull-ups, a line held low. Bail on the first one: 119 x the
+        // 50 ms Wire timeout is ~6 s inline on rx_task, every link stalled.
+        else if (r != 2) { proto_reply_err(seq, cmd, ST_IO); return; }
       }
       buf[0] = n;
       proto_reply(seq, cmd, buf, 1 + n);

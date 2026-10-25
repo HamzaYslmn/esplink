@@ -4,7 +4,7 @@
 // See esplink/link.h for the public API.
 //
 // One source for every chip, on the core's own BLE library: it is Bluedroid on
-// the classic ESP32 and NimBLE on S3/C3/C6, behind the same API. The two #if
+// the classic ESP32 and NimBLE on S3/C3, behind the same API. The two #if
 // blocks below are the only places the stacks differ.
 //
 // RX: the host writes the RX characteristic, the BT host task pushes the bytes
@@ -102,6 +102,7 @@ class LinkRxCb : public BLECharacteristicCallbacks {
     // The 50 ms timeout lets a pipelined burst backpressure that task instead of
     // dropping bytes; still full after 50 ms means the host will retry anyway.
     size_t n = xStreamBufferSend(rx_buf, c->getData(), c->getLength(), pdMS_TO_TICKS(50));
+    proto_rx_kick();
     if (n < c->getLength()) {
       // Never drop silently: a partial COBS frame looks like a random host-side
       // timeout. Count it (SYS_FREE_HEAP) and emit a rate-limited warning.
@@ -117,6 +118,18 @@ class LinkRxCb : public BLECharacteristicCallbacks {
   }
 };
 static LinkRxCb link_rx_cb;
+
+// NimBLE has no congestion event: a notify into an exhausted mbuf pool fails
+// (BLE_HS_ENOMEM) and the chunk is freed, unsent — the same silent mid-frame
+// loss as Bluedroid's full queue. notify() reports it synchronously here, so
+// write_chunk can say "0 bytes, retry next pass" instead.
+static bool notify_failed = false;  // tx_task only: set and read inside notify()
+class LinkTxCb : public BLECharacteristicCallbacks {
+  void onStatus(BLECharacteristic*, Status s, uint32_t) override {
+    if (s == Status::ERROR_GATT) notify_failed = true;
+  }
+};
+static LinkTxCb link_tx_cb;
 
 // Min free heap before BLEDevice::init(): below it the host stack's allocations
 // abort with no recoverable path, so BLE is skipped, not fatal.
@@ -161,6 +174,7 @@ void link_ble_init(const char* password) {
       BLE_LINK_RX_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
   rx->setCallbacks(&link_rx_cb);
   tx_chr = svc->createCharacteristic(BLE_LINK_TX_UUID, BLECharacteristic::PROPERTY_NOTIFY);
+  tx_chr->setCallbacks(&link_tx_cb);
   tx_chr->addDescriptor(new BLE2902());
   svc->start();
 
@@ -207,8 +221,9 @@ uint16_t link_ble_write_chunk(const uint8_t* data, uint16_t len) {
   if (chunk > 512) chunk = 512;  // ATT caps a value at 512; NimBLE drops longer ones
   if (len < chunk) chunk = len;
   tx_chr->setValue((uint8_t*)data, chunk);
+  notify_failed = false;
   tx_chr->notify();
-  return chunk;
+  return notify_failed ? 0 : chunk;
 }
 
 uint16_t link_ble_read(uint8_t* buf, uint16_t maxlen) {

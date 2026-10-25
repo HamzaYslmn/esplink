@@ -1,19 +1,13 @@
-"""Log readings to the ESP32's internal flash (LittleFS) and read them back.
+"""Append a reading to a log file in the board's own flash (LittleFS), read it back.
 
-The data stays on the board across power cycles — useful when the board
-runs detached and you collect logs over Bluetooth later.
+    uv run system/fs_logger.py
 """
 import time
 
 from esplink import Bridge
 
 with Bridge() as esp:
-    lfs = esp.fs.mount("littlefs")
-    print(f"littlefs: {lfs.used_kb}/{lfs.total_kb} KB used")
-
-    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} adc={esp.adc.read(34)}\n"
-    lfs.append_file("/sensor.log", line.encode())
-
-    print(lfs.read_file("/sensor.log").decode(), end="")
-    for name, size, isdir in lfs.list("/"):
-        print(f"{'<dir> ' if isdir else ''}{name}  {size} B")
+    vol = esp.fs.mount("littlefs")           # formats itself on first use
+    vol.append_file("/sensor.log", f"{time.ctime()} adc={esp.adc.read(34)}\n".encode())
+    print(vol.read_file("/sensor.log").decode(), end="")
+    print(f"{vol.used_kb}/{vol.total_kb} KB used")

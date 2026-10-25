@@ -145,7 +145,7 @@ void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (wpin >= 0) {
 #if SOC_PM_SUPPORT_EXT0_WAKEUP
         esp_sleep_enable_ext0_wakeup((gpio_num_t)wpin, wlevel);  // EXT0 wakeup requires an RTC-capable GPIO
-#else  // C3/C6 lack EXT0; they use a different GPIO wakeup API that also differs between deep and light sleep
+#else  // C3 lacks EXT0; they use a different GPIO wakeup API that also differs between deep and light sleep
         if (mode == 0) {
           esp_deep_sleep_enable_gpio_wakeup(1ULL << wpin,
               wlevel ? ESP_GPIO_WAKEUP_GPIO_HIGH : ESP_GPIO_WAKEUP_GPIO_LOW);
@@ -220,8 +220,8 @@ void sys_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       write_be32(buf + 4, ESP.getMinFreeHeap());
       write_be32(buf + 8, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
       write_be32(buf + 12, proto_dropped_events());
-      write_be32(buf + 16, link_ble_rx_dropped());    // added fw 0.3.2; host length-checks
-      write_be32(buf + 20, link_serial_rx_errors());  // added fw 0.5.2; host length-checks
+      write_be32(buf + 16, link_ble_rx_dropped());
+      write_be32(buf + 20, link_serial_rx_errors());
       proto_reply(seq, cmd, buf, 24);
       break;
     }

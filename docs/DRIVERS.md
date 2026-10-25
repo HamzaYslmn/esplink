@@ -159,7 +159,7 @@ unchanged with the ESP32's pins standing in for the Pi's — see the
   `esplink.compat.blinka` (`I2C`, `SPI`, `DigitalInOut`).
 - **luma.oled / luma.lcd** displays via `esplink.compat.luma`.
 - **gpiozero** via the `EspLinkFactory` pin factory.
-- **smbus2** and **RPi.GPIO** drop-in shims.
+- **smbus2** drop-in shim.
 
 Write a native driver when you want tight control or a clean API; reach for a
 compat shim when a battle-tested driver already exists.

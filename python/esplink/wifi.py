@@ -86,7 +86,7 @@ class Wifi:
         bridge.on_event(C.WIFI_SCAN_DONE, self._on_scan_done)
         bridge.on_event(C.WIFI_STATE_EVT, self._on_state)
 
-    # ---- event handlers — all called on the reader thread --------------------
+    # ---- event handlers — all called on the event thread --------------------
 
     def _on_scan_res(self, p: bytes) -> None:
         if len(p) < 12:

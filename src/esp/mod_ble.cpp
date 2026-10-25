@@ -2,7 +2,7 @@
 // BLE module: advertising/scanning, a GATT server (multiple services), and a
 // basic GATT client supporting a single simultaneous connection.
 // The core's own BLE library: Bluedroid on the classic ESP32, NimBLE on
-// S3/C3/C6, one API — the same stack as the BLE link.
+// S3/C3, one API — the same stack as the BLE link.
 //
 // Command handlers run on slow_task. BT host callbacks (scan results,
 // GATT writes, connect/disconnect) run on BT stack tasks. Both paths only
@@ -97,15 +97,6 @@ class ChrCb : public BLECharacteristicCallbacks {
   }
 };
 
-// ---- GATT client callbacks --------------------------------------------------
-class CliCb : public BLEClientCallbacks {
-  void onConnect(BLEClient*) override {}
-  void onDisconnect(BLEClient*) override {
-    proto_send_event(BLE_GATTC_DISC_EVT, nullptr, 0);
-  }
-};
-static CliCb cli_cb;
-
 static void notify_cb(BLERemoteCharacteristic* chr, uint8_t* data, size_t len, bool) {
   uint8_t buf[16 + 256];
   uuid_to_wire(chr->getUUID(), buf);
@@ -195,7 +186,7 @@ void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
         }
       }
       BLEService* svc = server_obj->createService(wire_to_uuid(p));
-      uint8_t ids[BLE_MAX_CHARS];
+      uint8_t ids[BLE_MAX_CHARS], first = char_count;
       for (uint8_t i = 0; i < n; i++) {
         const uint8_t* cdef = p + 17 + i * 17;
         uint8_t props = cdef[16];
@@ -210,7 +201,14 @@ void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
         chars[char_count] = chr;
         ids[i] = char_count++;
       }
-      svc->start();
+      // NimBLE (S3/C3) registers the whole GATT table once, when advertising
+      // starts; a service added after that cannot start (BLE_HS_EBUSY). Say so
+      // rather than hand back ids for characteristics no central will ever see.
+      if (!svc->start()) {
+        char_count = first;
+        proto_reply_err(seq, cmd, ST_BUSY);
+        return;
+      }
       proto_reply(seq, cmd, ids, n);
       break;
     }
@@ -229,7 +227,6 @@ void ble_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
       if (client_obj && client_obj->isConnected()) { proto_reply_err(seq, cmd, ST_BUSY); return; }
       if (!client_obj) {
         client_obj = BLEDevice::createClient();
-        client_obj->setClientCallbacks(&cli_cb);
       }
       char addr[18];
       snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x", p[0], p[1], p[2], p[3], p[4], p[5]);

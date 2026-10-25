@@ -15,7 +15,7 @@ MODES = {
 }
 _MODE_NAMES = {v: k for k, v in MODES.items()}
 _OUTPUT_MODES = ("output", "output_open_drain")
-EDGES = {"rising": 1, "falling": 2, "change": 3}
+EDGES = {"rising": 1, "falling": 2, "change": 3, "both": 3}  # "both": gpiozero/RPi.GPIO wording
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,7 @@ class Gpio:
         return out
 
     def watch(self, pin: int, edge: str = "change", debounce_ms: int = 0, callback=None) -> None:
-        """Get `callback(EdgeEvent)` on pin edges (callback runs on the reader thread)."""
+        """Get `callback(EdgeEvent)` on pin edges (on the Bridge's event thread; requests are fine)."""
         e = EDGES[edge] if isinstance(edge, str) else int(edge)
         if callback is not None:
             self._watchers.setdefault(pin, []).append(callback)

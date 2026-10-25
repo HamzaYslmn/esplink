@@ -73,6 +73,7 @@ static uint8_t ow_read_byte(uint8_t pin) {
 void onewire_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   uint16_t cmd = CMD(MOD_ONEWIRE, op);
   NEED(1);
+  NEED_FREE_PINS(p, 1);
   uint8_t pin = p[0];
   switch (op) {
     case 0x01: {  // RESET -> present u8

@@ -1,8 +1,9 @@
-"""BLE scan through the ESP32: list nearby advertisers for 10 seconds."""
+"""Use the ESP32 as a BLE scanner: list advertisers nearby for 10 s.
+
+    uv run wireless/ble_scan.py
+"""
 from esplink import Bridge
 
 with Bridge() as esp:
-    print("scanning BLE for 10 s ...")
     for adv in esp.ble.scan(10):
-        name = adv.name or "-"
-        print(f"{adv.rssi:4d} dBm  {adv.addr}  {name}")
+        print(f"{adv.rssi:4d} dBm  {adv.addr}  {adv.name or '-'}")

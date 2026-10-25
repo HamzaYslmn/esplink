@@ -30,6 +30,7 @@ void spi_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   switch (op) {
     case 0x01: {  // INIT: host, sck i8, miso i8, mosi i8, freq u32, mode, msb_first
       NEED(10);
+      NEED_FREE_PINS(p + 1, 3);  // sck, miso, mosi
       if (st[idx].inited) spi->end();
       spi->begin((int8_t)p[1], (int8_t)p[2], (int8_t)p[3], -1);
       st[idx] = { true, read_be32(p + 4), (uint8_t)(p[8] & 3), p[9] };
@@ -40,6 +41,7 @@ void spi_handle(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
     case 0x02: {  // TRANSFER: host, cs i8 (-1 = no CS), data.. -> rx data (full-duplex)
       if (!st[idx].inited) { proto_reply_err(seq, cmd, ST_NOT_INIT); return; }
       NEED(2);
+      NEED_FREE_PINS(p + 1, 1);  // cs
       int8_t cs = (int8_t)p[1];
       // Full-duplex in place over the payload (rx_task's COBS accumulator, ours
       // until return) — same idiom as SPI.transfer(buf, n); saves a 2 KB buffer.

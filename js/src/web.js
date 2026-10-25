@@ -33,6 +33,7 @@ export async function connectSerial({ port, baudRate = 115200, ...opts } = {}) {
       t.onData?.(value);
     }
   })();
+  await writer.write(Uint8Array.of(0));  // end any half-frame the board holds, or our first request is lost
   return Bridge.open(t, opts);
 }
 

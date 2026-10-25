@@ -54,7 +54,7 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__version__ = "1.0.2"
+__version__ = "2.0.0"
 
 # Grouped by role, not alphabetised: this list is the shape of the public API.
 __all__ = [

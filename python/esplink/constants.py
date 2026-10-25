@@ -67,12 +67,9 @@ class Cap(enum.IntFlag):
 class ChipModel(enum.IntEnum):
     UNKNOWN = 0
     ESP32 = 1
-    ESP32S2 = 2
     ESP32S3 = 3
     ESP32C3 = 4
-    ESP32C6 = 5
-    ESP32H2 = 6
-    NRF52840 = 7  # Nordic nRF52840 (Seeed XIAO / Adafruit Bluefruit core)
+    NRF52840 = 7  # Nordic nRF52840 (Pro Micro / XIAO); 2, 5, 6 retired, never reuse
 
 
 def _cmd(mod: int, op: int) -> int:
@@ -141,7 +138,6 @@ ADC_READ = _cmd(MOD_ADC, 0x02)
 ADC_READ_MV = _cmd(MOD_ADC, 0x03)
 DAC_WRITE = _cmd(MOD_DAC, 0x01)
 DAC_COSINE = _cmd(MOD_DAC, 0x02)
-DAC_COS_STOP = _cmd(MOD_DAC, 0x03)
 DAC_DISABLE = _cmd(MOD_DAC, 0x04)
 TOUCH_READ = _cmd(MOD_TOUCH, 0x01)
 
@@ -272,7 +268,6 @@ BLE_ADV_EVT = _cmd(MOD_BLE, 0x80)
 BLE_GATTS_WR_EVT = _cmd(MOD_BLE, 0x81)
 BLE_GATTS_CONN_EVT = _cmd(MOD_BLE, 0x82)
 BLE_GATTC_NTFY_EVT = _cmd(MOD_BLE, 0x83)
-BLE_GATTC_DISC_EVT = _cmd(MOD_BLE, 0x84)
 
 GATT_PROP_READ = 0x01
 GATT_PROP_WRITE = 0x02
@@ -323,7 +318,6 @@ CAM_SET = _cmd(MOD_CAM, 0x05)
 CAM_DEINIT = _cmd(MOD_CAM, 0x06)
 
 # WATCH — polled, user-definable on-device event rules
-WATCH_ADD = _cmd(MOD_WATCH, 0x01)
 WATCH_REMOVE = _cmd(MOD_WATCH, 0x02)
 WATCH_CLEAR = _cmd(MOD_WATCH, 0x03)
 WATCH_LIST = _cmd(MOD_WATCH, 0x04)
@@ -380,7 +374,8 @@ KNOWN_USB_IDS = {
     (0x10C4, 0xEA60): "cp210x",   # CP2102/CP2104 (most DevKitC)
     (0x1A86, 0x7523): "ch340",    # CH340
     (0x1A86, 0x55D4): "ch9102",   # CH9102 (CH340 successor)
-    (0x303A, None): "native",     # Espressif native USB (S2/S3/C3/...)
+    (0x303A, None): "native",     # Espressif native USB (S3/C3)
+    (0x239A, None): "native",     # Adafruit nRF52 bootloader family (TinyUSB CDC)
 }
 
 # BLE link: Nordic-UART-style GATT service the firmware exposes as a transport.

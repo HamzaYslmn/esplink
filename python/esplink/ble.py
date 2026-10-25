@@ -138,7 +138,7 @@ class Ble:
         bridge.on_event(C.BLE_GATTS_CONN_EVT, self._on_gatts_conn)
         bridge.on_event(C.BLE_GATTC_NTFY_EVT, self._on_notify)
 
-    # ---- event handlers — all called on the reader thread -----------------------
+    # ---- event handlers — all called on the event thread -----------------------
 
     def _on_adv(self, p: bytes) -> None:
         if len(p) < 8:

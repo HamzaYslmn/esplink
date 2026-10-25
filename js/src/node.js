@@ -20,6 +20,7 @@ export async function connectSerial({ path, baudRate = 115200, ...opts } = {}) {
     close: () => new Promise((ok) => (port.isOpen ? port.close(() => ok()) : ok())),
   };
   port.on("data", (d) => t.onData?.(new Uint8Array(d)));
+  await t.write(Uint8Array.of(0));  // end any half-frame the board holds, or our first request is lost
   return Bridge.open(t, opts);
 }
 

@@ -19,26 +19,12 @@
 
 // pin_is_adc2() — the ADC2/Wi-Fi conflict check — is shared via modules.h.
 
-#if BRIDGE_HAS_DAC
-static bool is_dac_pin(uint8_t pin) {
-#if defined(CONFIG_IDF_TARGET_ESP32)
-  return pin == 25 || pin == 26;
-#elif defined(CONFIG_IDF_TARGET_ESP32S2)
-  return pin == 17 || pin == 18;
-#else
-  return false;
-#endif
-}
+#if BRIDGE_HAS_DAC  // classic ESP32 only: DAC1 = GPIO25, DAC2 = GPIO26
+static bool is_dac_pin(uint8_t pin) { return pin == 25 || pin == 26; }
 
 #if BRIDGE_DAC_COSINE
 static dac_cosine_handle_t cos_handle[2];  // per DAC channel
-static int dac_channel(uint8_t pin) {
-#if defined(CONFIG_IDF_TARGET_ESP32)
-  return pin == 25 ? 0 : 1;
-#else
-  return pin == 17 ? 0 : 1;
-#endif
-}
+static int dac_channel(uint8_t pin) { return pin == 25 ? 0 : 1; }
 
 static void stop_cosine(uint8_t pin) {
   int ch = dac_channel(pin);
@@ -54,6 +40,7 @@ static void stop_cosine(uint8_t pin) {
 static void handle_adc(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) {
   uint16_t cmd = CMD(MOD_ADC, op);
   NEED(1);
+  NEED_FREE_PINS(p, 1);  // S3: GPIO19/20 are ADC2 channels and the USB pads
   uint8_t pin = p[0];
   switch (op) {
     case 0x01: {  // CONFIG: pin, atten
@@ -121,13 +108,6 @@ static void handle_dac(uint8_t op, uint8_t seq, const uint8_t* p, uint16_t len) 
 #endif
       break;
     }
-
-    case 0x03:  // COS_STOP
-#if BRIDGE_DAC_COSINE
-      stop_cosine(pin);
-#endif
-      proto_reply_ok(seq, cmd);
-      break;
 
     case 0x04:  // DISABLE
 #if BRIDGE_DAC_COSINE

@@ -12,6 +12,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include "tusb.h"  // tud_cdc_write: see advance_usb_stream
 #endif
 #include <atomic>  // inter-task counters/flags: atomic is the correct primitive (volatile is not)
 #include <new>     // nothrow allocation of the on-demand Wi-Fi link buffers
@@ -227,7 +228,15 @@ static bool advance_usb_stream() {
   if (room <= 0) return false;  // TX ring full: the UART drains it at line rate
   uint16_t n = tx_usb.len - tx_usb.pos;
   if ((int)n > room) n = (uint16_t)room;
+#if defined(ARDUINO_ARCH_NRF52)
+  // TinyUSB's own write: Adafruit's Serial.write drops every byte while DTR is
+  // low, and DTR is no reset line on this chip, so nothing else drives it.
+  n = (uint16_t)tud_cdc_write(tx_usb.wire + tx_usb.pos, n);
+  tud_cdc_write_flush();
+  if (n == 0) return false;
+#else
   Serial.write(tx_usb.wire + tx_usb.pos, n);  // fits the ring: never blocks
+#endif
   tx_usb.pos += n;
   if (tx_usb.pos == tx_usb.len) tx_usb.len = 0;
   return true;
@@ -294,12 +303,13 @@ static void tx_task(void*) {
     moved = advance_ble_stream() || moved;
     moved = advance_net_stream() || moved;
     if (!moved) {
-      spins = 0;
       if (tx_streams_idle()) {
         // Fully idle: sleep until enqueue_frame notifies (latched, so a
-        // notify that races this wait is not lost).
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+        // notify that races this wait is not lost). A latched notify returns
+        // at once without sleeping, so only a timeout resets the yield count.
+        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100)) == 0) spins = 0;
       } else {
+        spins = 0;
         vTaskDelay(1);  // a link is stalled (ring full / congested): poll soon
       }
     } else if (++spins >= RX_YIELD_EVERY) {
@@ -539,6 +549,11 @@ static bool handle_auth(uint8_t origin, uint8_t seq, uint16_t cmd,
 static uint32_t serial_rx_errors = 0;
 uint32_t link_serial_rx_errors() { return serial_rx_errors; }
 
+// Latched by the first valid USB frame: from then on a host is on the far side
+// of Serial, and pin_is_link() (modules.h) refuses to hand its pins to a bus.
+static std::atomic<bool> usb_link_seen{false};
+bool proto_usb_link_active() { return usb_link_seen; }
+
 // Decode in place (no scratch buffer) and dispatch. Safe to refill the
 // accumulator on return: inline handlers run to completion, slow_enqueue copies.
 static void decode_and_dispatch(uint8_t origin, uint8_t* enc, uint16_t enclen) {
@@ -548,6 +563,7 @@ static void decode_and_dispatch(uint8_t origin, uint8_t* enc, uint16_t enclen) {
     if (origin == LINK_USB) serial_rx_errors++;
     return;
   }
+  if (origin == LINK_USB) usb_link_seen = true;
   uint8_t seq = enc[1];
   uint16_t cmd = read_be16(enc + 2);
   if (handle_auth(origin, seq, cmd, enc + 4, n - 6)) return;
@@ -617,17 +633,23 @@ static bool proto_pump_rx() {
   return any;
 }
 
+void proto_rx_kick() {
+  if (rx_task_h) xTaskNotifyGive(rx_task_h);  // latched: a kick mid-pump is not lost
+}
+
 static void rx_task(void*) {
   uint16_t spins = 0;
   for (;;) {
     bool busy = proto_pump_rx();
     gpio_poll();   // ISR edge queue -> events
     uart_poll();   // secondary UART RX -> events
-    // Yield regularly: idle -> sleep a tick; busy -> still yield every
-    // RX_YIELD_EVERY loops, or this prio-10 task starves idle and trips the WDT.
+    // Idle: sleep until a link kicks us (bytes arrived) or 1 tick passes (GPIO
+    // edges, the secondary UART and TCP are still polled). Busy: still yield
+    // every RX_YIELD_EVERY loops, or this prio-10 task starves idle and trips the WDT.
+    // A pending kick makes the take return at once without blocking, so only
+    // a timed-out take (the task really slept) proves the idle task ran.
     if (!busy) {
-      spins = 0;
-      vTaskDelay(1);
+      if (ulTaskNotifyTake(pdTRUE, 1) == 0) spins = 0;
     } else if (++spins >= RX_YIELD_EVERY) {
       spins = 0;
       vTaskDelay(1);

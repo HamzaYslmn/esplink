@@ -1,22 +1,18 @@
-"""IR remote: print NEC codes from a TSOP receiver on GPIO 15, and
-re-send the last code out an IR LED on GPIO 4 when you press Enter."""
+"""IR remote: print NEC codes from a TSOP receiver on GPIO 15. Ctrl+C stops.
+
+To send instead: esp.ir_sender(pin=4).send_nec(addr, cmd), IR LED on GPIO 4.
+
+    uv run devices/ir_remote.py
+"""
 from esplink import Bridge
-from esplink.drivers.ir import IrReceiver, IrSender
 
 with Bridge() as esp:
-    rx = IrReceiver(esp, pin=15)
-    tx = IrSender(esp, pin=4)
-    last = None
-    print("point a remote at the receiver (Ctrl+C to quit)...")
+    rx = esp.ir_receiver(pin=15)
+    print("point a remote at the receiver ...")
     try:
         while True:
-            code = rx.receive(timeout_ms=10_000)
-            if code == "repeat":
-                print("  (held)")
-            elif code:
-                last = code
-                print(f"addr=0x{code[0]:02X} cmd=0x{code[1]:02X}")
-                if input("  Enter = replay, anything else = keep listening: ") == "":
-                    tx.send_nec(*last)
+            code = rx.receive(timeout_ms=10_000)   # (addr, cmd), "repeat" or None
+            if isinstance(code, tuple):
+                print(f"addr 0x{code[0]:02X}  cmd 0x{code[1]:02X}")
     except KeyboardInterrupt:
         pass

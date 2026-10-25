@@ -39,10 +39,24 @@ GPIO, ADC/DAC, PWM, touch, I2C, SPI, UART, Wi-Fi sockets, BLE, ESP-NOW, RMT,
   The 3.x LEDC/String APIs are required; it will not build on 2.x.
   Tested with **3.3.12** (classic ESP32, Minimal SPIFFS partition scheme).
 - No external libraries. Bluetooth is the core's own `BLE` library, which runs
-  Bluedroid on the classic ESP32 and NimBLE on S3/C3/C6 behind one API, so the
+  Bluedroid on the classic ESP32 and NimBLE on S3/C3 behind one API, so the
   BLE link and `esp.ble` work on every chip with a radio.
 
-## Nordic nRF52840 (Seeed XIAO / Adafruit Bluefruit)
+## Nordic nRF52840 (Pro Micro / Seeed XIAO)
+
+Pro Micro nRF52840 (nice!nano-style), from the repo root:
+
+```sh
+arduino-cli compile --profile promicro examples/Bridge_nRF52
+arduino-cli upload  --profile promicro -p COM12 examples/Bridge_nRF52
+```
+
+The profile (`examples/Bridge_nRF52/sketch.yaml`) targets
+`Seeeduino:nrf52:promicronRF52840:softdevice=s140v6` — a Pro Micro board
+definition added to the Seeed nRF52 core; `s140v6` matches the stock bootloader
+(a 0.9.x bootloader needs `s140v7`, or the upload succeeds and never boots).
+Arduino pin numbers are the silkscreen numbers (SDA/SCL 4/5, ADC 19-21, LED 11;
+12/13/17 drive on-board parts). Upload uses the 1200-baud touch, no double-tap.
 
 The firmware also builds for the **nRF52840** on the Adafruit/Seeed **nRF52
 (Bluefruit, FreeRTOS) core** — *not* the mbed-enabled core. The protocol, wire
@@ -209,7 +223,7 @@ core 1 entirely to the sketch — pair with omitting `EspLink.run()`).
 **Classic-ESP32 IRAM trade-off:** with Wi-Fi + BLE loaded the SD-card drivers
 don't fit the chip's instruction RAM, so the default classic build ships without
 SD (LittleFS and deep/light sleep work). Building with `-DBRIDGE_ENABLE_BLE=0`
-frees the BT IRAM and re-enables SD and SDMMC. S2/S3/C3/C6 have everything in
+frees the BT IRAM and re-enables SD and SDMMC. S3 and C3 have everything in
 every build.
 
 ## Bluetooth discovery
